@@ -73,6 +73,20 @@ const DEVICE_INFO = {
   "0305": { type: "Rollladen", circuit: "K", description: "volet cuisine", room: "Cuisine", address: "3.5" },
 };
 
+const HARDWARE_MODELS = [
+  "067219",
+  "BMSW1005",
+  "F411/4",
+  "F417U2",
+  "F418",
+  "F422",
+  "F430R8",
+  "H4652/2",
+  "HC/HS/HD4659",
+  "LN4652",
+  "LN4691",
+];
+
 function getMessageParts(raw) {
   const message = String(raw || "")
     .replace(/^`|`$/g, "")
@@ -266,6 +280,15 @@ class ZmartMyhomePanel extends HTMLElement {
           cursor: wait;
           opacity: 0.65;
         }
+        .create-controls {
+          display: grid;
+          gap: 6px;
+          min-width: 150px;
+        }
+        .create-controls select,
+        .create-controls button {
+          width: 100%;
+        }
         .table-wrap {
           overflow-x: auto;
         }
@@ -349,17 +372,7 @@ class ZmartMyhomePanel extends HTMLElement {
             </select>
             <select id="create-model">
               <option value="">Hardware optional</option>
-              <option value="067219">067219</option>
-              <option value="BMSW1005">BMSW1005</option>
-              <option value="F411/4">F411/4</option>
-              <option value="F417U2">F417U2</option>
-              <option value="F418">F418</option>
-              <option value="F422">F422</option>
-              <option value="F430R8">F430R8</option>
-              <option value="H4652/2">H4652/2</option>
-              <option value="HC/HS/HD4659">HC/HS/HD4659</option>
-              <option value="LN4652">LN4652</option>
-              <option value="LN4691">LN4691</option>
+              ${HARDWARE_MODELS.map((model) => `<option value="${model}">${model}</option>`).join("")}
             </select>
             <button id="clear-filter" type="button">Reset</button>
             <button id="create-found" class="primary" type="button">Gefundene anlegen</button>
@@ -574,11 +587,22 @@ class ZmartMyhomePanel extends HTMLElement {
       return null;
     }
 
+    const controls = document.createElement("div");
+    controls.className = "create-controls";
+
+    const modelSelect = document.createElement("select");
+    modelSelect.appendChild(new Option("Hardware optional", ""));
+    HARDWARE_MODELS.forEach((model) => modelSelect.appendChild(new Option(model, model)));
+    modelSelect.value = parsed.model || this.selectedCreateModel();
+    controls.appendChild(modelSelect);
+
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = "Anlegen";
-    button.addEventListener("click", () => this.createEntityFromEntry(entry));
-    return button;
+    button.addEventListener("click", () => this.createEntityFromEntry(entry, modelSelect.value));
+    controls.appendChild(button);
+
+    return controls;
   }
 
   creatableEntries() {
@@ -636,7 +660,7 @@ class ZmartMyhomePanel extends HTMLElement {
     return data;
   }
 
-  async createEntityFromEntry(entry) {
+  async createEntityFromEntry(entry, selectedModel = this.selectedCreateModel()) {
     const parsed = entry.parsed || {};
     const defaultOptions = this.entityOptionsForEntry(entry);
     const defaultPlatform = defaultOptions.platform || "light";
@@ -646,7 +670,7 @@ class ZmartMyhomePanel extends HTMLElement {
     const name = window.prompt("Name", parsed.description || `${parsed.type || "MyHome"} ${parsed.where}`);
     if (!name) return;
 
-    const model = window.prompt("Modell optional", this.selectedCreateModel() || parsed.model || "");
+    const model = selectedModel || parsed.model || "";
     const entityClass = platform === "switch"
       ? window.prompt("Class optional: switch oder outlet", defaultOptions.class || "switch")
       : "";
