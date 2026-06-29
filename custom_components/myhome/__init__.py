@@ -1,8 +1,6 @@
 """ MyHOME integration. """
 
-import copy
 import aiofiles
-import re
 import yaml
 
 from OWNd.message import OWNCommand, OWNGatewayCommand
@@ -18,12 +16,6 @@ from .bus_monitor import MyHomeBusMonitorView, MyHomeBusMonitorDataView
 from .const import (
     ATTR_GATEWAY,
     ATTR_MESSAGE,
-    CONF_ADVANCED_SHUTTER,
-    CONF_BUS_INTERFACE,
-    CONF_DEVICE_CLASS,
-    CONF_DEVICE_MODEL,
-    CONF_DIMMABLE,
-    CONF_ENTITY_NAME,
     CONF_PLATFORMS,
     CONF_ENTITY,
     CONF_ENTITIES,
@@ -38,83 +30,6 @@ from .gateway import MyHOMEGatewayHandler
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS = ["light", "switch", "cover", "climate", "binary_sensor", "sensor", "update"]
-CREATE_ENTITY_PLATFORMS = {"light", "switch", "cover", "binary_sensor", "sensor"}
-DEVICE_MODEL_OPTIONS = {
-    "067219",
-    "BMSW1005",
-    "F411/4",
-    "F417U2",
-    "F418",
-    "F422",
-    "F430R8",
-    "H4652/2",
-    "HC/HS/HD4659",
-    "LN4652",
-    "LN4691",
-}
-
-
-def _slugify(value: str) -> str:
-    slug = re.sub(r"[^a-z0-9_]+", "_", value.lower().strip())
-    return re.sub(r"_+", "_", slug).strip("_") or "myhome_entity"
-
-
-def _next_device_id(devices: dict, requested_id: str) -> str:
-    if requested_id not in devices:
-        return requested_id
-
-    counter = 2
-    while f"{requested_id}_{counter}" in devices:
-        counter += 1
-    return f"{requested_id}_{counter}"
-
-
-def _find_raw_gateway_key(config: dict, gateway_mac=None):
-    if not config:
-        return None
-
-    if gateway_mac is None:
-        return next(iter(config))
-
-    formatted_gateway = format_mac(gateway_mac)
-    if formatted_gateway is None:
-        return None
-
-    for gateway_key, gateway_config in config.items():
-        if format_mac(str(gateway_config.get(CONF_MAC, ""))) == formatted_gateway:
-            return gateway_key
-    return None
-
-
-def _build_entity_config(platform: str, data: dict) -> dict:
-    entity = {
-        "where": str(data["where"]),
-        "name": str(data["name"]),
-    }
-
-    optional_string_fields = {
-        CONF_BUS_INTERFACE: "interface",
-        CONF_ENTITY_NAME: "entity_name",
-        CONF_DEVICE_MODEL: "model",
-        "icon": "icon",
-        "icon_on": "icon_on",
-    }
-    for config_key, service_key in optional_string_fields.items():
-        value = data.get(service_key)
-        if value not in (None, ""):
-            entity[config_key] = str(value)
-
-    if platform == "switch" and data.get("class") not in (None, ""):
-        entity[CONF_DEVICE_CLASS] = str(data["class"])
-    elif platform == "light":
-        entity[CONF_DIMMABLE] = bool(data.get("dimmable", False))
-    elif platform == "cover":
-        entity[CONF_ADVANCED_SHUTTER] = bool(data.get("advanced", False))
-    elif platform in ("binary_sensor", "sensor"):
-        if data.get("class") not in (None, ""):
-            entity[CONF_DEVICE_CLASS] = str(data["class"])
-
-    return entity
 
 
 async def async_setup(hass, config):
@@ -370,72 +285,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     hass.services.async_register(DOMAIN, "send_message", handle_send_message)
 
-    async def handle_create_entity(call):
-        platform = str(call.data.get("platform", "")).strip()
-        if platform not in CREATE_ENTITY_PLATFORMS:
-            LOGGER.error("Invalid platform `%s`, could not create entity.", platform)
-            return False
-
-        name = call.data.get("name")
-        where = call.data.get("where")
-        if not name or not where:
-            LOGGER.error("Missing name or where, could not create entity.")
-            return False
-        model = call.data.get("model")
-        if model not in (None, "") and str(model) not in DEVICE_MODEL_OPTIONS:
-            LOGGER.warning(
-                "Creating MyHome entity with unknown device model `%s`.",
-                model,
-            )
-
-        async with aiofiles.open(_config_file_path, mode="r") as yaml_file:
-            raw_config = yaml.safe_load(await yaml_file.read()) or {}
-
-        gateway_key = _find_raw_gateway_key(raw_config, call.data.get(ATTR_GATEWAY))
-        if gateway_key is None:
-            LOGGER.error(
-                "Gateway `%s` not found, could not create entity.",
-                call.data.get(ATTR_GATEWAY),
-            )
-            return False
-
-        updated_config = copy.deepcopy(raw_config)
-        gateway_config = updated_config[gateway_key]
-        gateway_config.setdefault(platform, {})
-        requested_id = call.data.get("device_id") or _slugify(str(name))
-        device_id = _next_device_id(gateway_config[platform], _slugify(str(requested_id)))
-
-        gateway_config[platform][device_id] = _build_entity_config(
-            platform,
-            call.data,
-        )
-
-        try:
-            config_schema(copy.deepcopy(updated_config))
-        except Exception as err:  # noqa: BLE001
-            LOGGER.error(
-                "Generated entity `%s` is not valid and was not written: %s",
-                device_id,
-                err,
-            )
-            return False
-
-        async with aiofiles.open(f"{_config_file_path}.bak", mode="w") as yaml_file:
-            await yaml_file.write(yaml.safe_dump(raw_config, sort_keys=False))
-
-        async with aiofiles.open(_config_file_path, mode="w") as yaml_file:
-            await yaml_file.write(yaml.safe_dump(updated_config, sort_keys=False))
-
-        LOGGER.info(
-            "Created MyHome %s entity `%s` in %s. Reload the integration to load it.",
-            platform,
-            device_id,
-            _config_file_path,
-        )
-        return True
-
-    hass.services.async_register(DOMAIN, "create_entity", handle_create_entity)
-
     return True
 
 
@@ -453,7 +302,6 @@ async def async_unload_entry(hass, entry):
 
     hass.services.async_remove(DOMAIN, "sync_time")
     hass.services.async_remove(DOMAIN, "send_message")
-    hass.services.async_remove(DOMAIN, "create_entity")
 
     gateway_handler = hass.data[DOMAIN][entry.data[CONF_MAC]].pop(CONF_ENTITY)
     del hass.data[DOMAIN][entry.data[CONF_MAC]]
