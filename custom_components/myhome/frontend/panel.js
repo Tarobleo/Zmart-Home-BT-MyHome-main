@@ -161,6 +161,17 @@ function parseTelegram(raw) {
   };
 }
 
+function mergeParsedTelegram(entry) {
+  const backendParsed = entry.parsed || {};
+  const frontendParsed = parseTelegram(entry.raw);
+  return {
+    ...frontendParsed,
+    ...Object.fromEntries(
+      Object.entries(backendParsed).filter(([, value]) => value !== undefined && value !== null && value !== ""),
+    ),
+  };
+}
+
 function escapeCsv(value) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
@@ -314,6 +325,7 @@ class ZmartMyhomePanel extends HTMLElement {
                   <th>WHO</th>
                   <th>Where</th>
                   <th>Typ</th>
+                  <th>Entity</th>
                   <th>Raum</th>
                   <th>Beschreibung</th>
                   <th>Aktion</th>
@@ -341,7 +353,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
     try {
       const data = await this._hass.callApi("GET", "myhome/bus_monitor/data");
-      this._entries = data.map((entry) => ({ ...entry, parsed: parseTelegram(entry.raw) }));
+      this._entries = data.map((entry) => ({ ...entry, parsed: mergeParsedTelegram(entry) }));
       this.updateFilterOptions();
       this.renderRows();
     } catch (err) {
@@ -400,6 +412,7 @@ class ZmartMyhomePanel extends HTMLElement {
         parsed.who,
         parsed.where,
         parsed.type,
+        parsed.domain,
         parsed.room,
         parsed.description,
         parsed.action,
@@ -430,6 +443,7 @@ class ZmartMyhomePanel extends HTMLElement {
         parsed.who,
         parsed.where,
         parsed.type,
+        parsed.domain,
         parsed.room,
         parsed.description,
         parsed.action,
@@ -474,6 +488,7 @@ class ZmartMyhomePanel extends HTMLElement {
       type: entry.parsed?.type || "",
       room: entry.parsed?.room || "",
       description: entry.parsed?.description || "",
+      domain: entry.parsed?.domain || "",
       action: entry.parsed?.action || "",
       value: entry.parsed?.value || "",
       raw: entry.raw || "",
@@ -492,7 +507,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
   downloadCsv() {
     const rows = this.exportRows();
-    const headers = ["time", "gateway", "direction", "who", "where", "type", "room", "description", "action", "value", "raw"];
+    const headers = ["time", "gateway", "direction", "who", "where", "type", "domain", "room", "description", "action", "value", "raw"];
     const csv = [
       headers.map(escapeCsv).join(","),
       ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(",")),
