@@ -332,6 +332,7 @@ class ZmartMyhomePanel extends HTMLElement {
                   <th>Beschreibung</th>
                   <th>Aktion</th>
                   <th>Wert</th>
+                  <th>Anlegen</th>
                   <th>Telegramm</th>
                 </tr>
               </thead>
@@ -468,6 +469,13 @@ class ZmartMyhomePanel extends HTMLElement {
       directionCell.appendChild(directionBadge);
       tr.insertBefore(directionCell, tr.children[2]);
 
+      const createCell = document.createElement("td");
+      const createButton = this.createEntityButton(entry);
+      if (createButton) {
+        createCell.appendChild(createButton);
+      }
+      tr.appendChild(createCell);
+
       const raw = document.createElement("td");
       const code = document.createElement("code");
       code.textContent = entry.raw || "";
@@ -501,6 +509,46 @@ class ZmartMyhomePanel extends HTMLElement {
       monitor_version: entry.monitor_version || this._monitorVersion || "",
       raw: entry.raw || "",
     }));
+  }
+
+  createEntityButton(entry) {
+    const parsed = entry.parsed || {};
+    const platform = parsed.suggested_domain || parsed.domain || "";
+    if (parsed.matched || !parsed.where || !platform || !["light", "switch", "cover", "binary_sensor", "sensor"].includes(platform)) {
+      return null;
+    }
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Anlegen";
+    button.addEventListener("click", () => this.createEntityFromEntry(entry));
+    return button;
+  }
+
+  async createEntityFromEntry(entry) {
+    const parsed = entry.parsed || {};
+    const defaultPlatform = parsed.suggested_domain || parsed.domain || "light";
+    const platform = window.prompt("Platform", defaultPlatform);
+    if (!platform) return;
+
+    const name = window.prompt("Name", parsed.description || `${parsed.type || "MyHome"} ${parsed.where}`);
+    if (!name) return;
+
+    const model = window.prompt("Modell optional", parsed.model || "");
+    const entityClass = platform === "switch"
+      ? window.prompt("Class optional: switch oder outlet", "switch")
+      : "";
+
+    const data = {
+      platform,
+      name,
+      where: parsed.where,
+    };
+    if (model) data.model = model;
+    if (entityClass) data.class = entityClass;
+
+    await this._hass.callService("myhome", "create_entity", data);
+    window.alert("Entität wurde in myhome.yaml angelegt. Bitte Integration neu laden.");
   }
 
   download(filename, content, type) {

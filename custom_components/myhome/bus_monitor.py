@@ -13,7 +13,7 @@ from .const import (
     DOMAIN,
 )
 
-MONITOR_VERSION = "20260629-3"
+MONITOR_VERSION = "20260629-4"
 
 
 PLATFORM_TYPES = {
@@ -32,6 +32,13 @@ WHO_TYPES = {
     "9": "Aux",
     "18": "Energie",
     "25": "Kontakt",
+}
+
+WHO_PLATFORMS = {
+    "1": "light",
+    "2": "cover",
+    "18": "sensor",
+    "25": "binary_sensor",
 }
 
 
@@ -120,6 +127,16 @@ def _message_parts(raw):
     return [part for part in message.split("*") if part]
 
 
+def _candidate_where(who, parts, raw):
+    raw_text = str(raw or "")
+    where_parts = parts[1:] if raw_text.startswith("*#") else parts[2:]
+    for part in where_parts:
+        if not part or part in ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9"):
+            continue
+        return _normalize_lighting_where(part) if who == "1" else part
+    return ""
+
+
 def _find_device(hass, who, parts, raw):
     raw_text = str(raw or "")
     where_parts = parts[1:] if raw_text.startswith("*#") else parts[2:]
@@ -200,18 +217,20 @@ def _parse_telegram(hass, raw):
     is_status = raw_text.startswith("*#")
     parts = _message_parts(raw_text)
     who = parts[0] if parts else ""
+    where = _candidate_where(who, parts, raw_text)
     device = _find_device(hass, who, parts, raw_text)
     action, value = _telegram_action(who, parts, is_status)
 
     parsed = {
         "who": who,
-        "where": "",
+        "where": where,
         "type": WHO_TYPES.get(who, f"WHO {who}" if who else ""),
         "domain": "",
+        "suggested_domain": WHO_PLATFORMS.get(who, ""),
         "model": "",
         "room": "",
         "description": "",
-        "address": "",
+        "address": _friendly_address(where),
         "action": action,
         "value": value,
         "matched": False,
