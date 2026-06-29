@@ -83,7 +83,22 @@ def _human_readable_log(message) -> str:
 
 def _append_bus_monitor_entry(hass, gateway: str, message, direction: str) -> None:
     """Store a bounded bus monitor entry."""
-    store = hass.data.setdefault(DOMAIN, {}).setdefault("_bus_monitor", [])
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    if direction == "in":
+        dedupe_key = (gateway, direction, str(message))
+        now = datetime.now().timestamp()
+        seen = domain_data.setdefault("_bus_monitor_seen", {})
+        if now - seen.get(dedupe_key, 0) < 2:
+            return
+        seen[dedupe_key] = now
+        if len(seen) > 1000:
+            domain_data["_bus_monitor_seen"] = {
+                key: value
+                for key, value in seen.items()
+                if now - value < 60
+            }
+
+    store = domain_data.setdefault("_bus_monitor", [])
     store.append(
         {
             "time": datetime.now().strftime("%H:%M:%S"),

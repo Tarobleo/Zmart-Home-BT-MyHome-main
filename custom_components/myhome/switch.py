@@ -1,6 +1,4 @@
 """Support for MyHome switches (light modules used for controlled outlets, relays)."""
-import asyncio
-
 from homeassistant.components.switch import (
     DOMAIN as PLATFORM,
     SwitchDeviceClass,
@@ -131,11 +129,6 @@ class MyHOMESwitch(MyHOMEEntity, SwitchEntity):
         """
         await self._gateway_handler.send_status_request(OWNLightingCommand.status(self._full_where))
 
-    async def _async_refresh_after_command(self):
-        """Refresh the real device state after the command has reached the bus."""
-        await asyncio.sleep(0.3)
-        await self.async_update()
-
     def _set_optimistic_state(self, is_on: bool):
         """Reflect a local command immediately while waiting for bus feedback."""
         self._attr_is_on = is_on
@@ -147,13 +140,11 @@ class MyHOMESwitch(MyHOMEEntity, SwitchEntity):
         """Turn the device on."""
         await self._gateway_handler.send(OWNLightingCommand.switch_on(self._full_where))
         self._set_optimistic_state(True)
-        self._hass.async_create_task(self._async_refresh_after_command())
 
     async def async_turn_off(self, **kwargs):  # pylint: disable=unused-argument
         """Turn the device off."""
         await self._gateway_handler.send(OWNLightingCommand.switch_off(self._full_where))
         self._set_optimistic_state(False)
-        self._hass.async_create_task(self._async_refresh_after_command())
 
     def handle_event(self, message: OWNLightingEvent):
         """Handle an event message."""
