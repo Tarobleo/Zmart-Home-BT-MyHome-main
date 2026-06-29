@@ -326,6 +326,7 @@ class ZmartMyhomePanel extends HTMLElement {
                   <th>Where</th>
                   <th>Typ</th>
                   <th>Entity</th>
+                  <th>Modell</th>
                   <th>Raum</th>
                   <th>Beschreibung</th>
                   <th>Aktion</th>
@@ -413,6 +414,7 @@ class ZmartMyhomePanel extends HTMLElement {
         parsed.where,
         parsed.type,
         parsed.domain,
+        parsed.model,
         parsed.room,
         parsed.description,
         parsed.action,
@@ -444,6 +446,7 @@ class ZmartMyhomePanel extends HTMLElement {
         parsed.where,
         parsed.type,
         parsed.domain,
+        parsed.model,
         parsed.room,
         parsed.description,
         parsed.action,
@@ -489,6 +492,7 @@ class ZmartMyhomePanel extends HTMLElement {
       room: entry.parsed?.room || "",
       description: entry.parsed?.description || "",
       domain: entry.parsed?.domain || "",
+      model: entry.parsed?.model || "",
       action: entry.parsed?.action || "",
       value: entry.parsed?.value || "",
       raw: entry.raw || "",
@@ -507,7 +511,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
   downloadCsv() {
     const rows = this.exportRows();
-    const headers = ["time", "gateway", "direction", "who", "where", "type", "domain", "room", "description", "action", "value", "raw"];
+    const headers = ["time", "gateway", "direction", "who", "where", "type", "domain", "model", "room", "description", "action", "value", "raw"];
     const csv = [
       headers.map(escapeCsv).join(","),
       ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(",")),

@@ -5,6 +5,7 @@ from homeassistant.components.http import HomeAssistantView
 from .const import (
     CONF_BUS_INTERFACE,
     CONF_DEVICE_CLASS,
+    CONF_DEVICE_MODEL,
     CONF_ENTITY_NAME,
     CONF_PLATFORMS,
     CONF_WHERE,
@@ -93,6 +94,7 @@ def _configured_devices(hass):
                         "domain": platform,
                         "type": _device_type(platform, device),
                         "device_class": _as_text(device.get(CONF_DEVICE_CLASS)),
+                        "model": _as_text(device.get(CONF_DEVICE_MODEL)),
                         "who": who,
                         "where": where,
                         "base_where": device.get(CONF_WHERE, ""),
@@ -204,6 +206,7 @@ def _parse_telegram(hass, raw):
         "where": "",
         "type": WHO_TYPES.get(who, f"WHO {who}" if who else ""),
         "domain": "",
+        "model": "",
         "room": "",
         "description": "",
         "address": "",

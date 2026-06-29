@@ -63,6 +63,25 @@ create_entity:
       name: Bus interface
       description: Optional local bus interface number.
       example: "02"
+    model:
+      name: Device model
+      description: Optional installed BTicino/Legrand device model.
+      example: F411/4
+      selector:
+        select:
+          custom_value: true
+          options:
+            - "067219"
+            - BMSW1005
+            - F411/4
+            - F417U2
+            - F418
+            - F422
+            - F430R8
+            - H4652/2
+            - HC/HS/HD4659
+            - LN4652
+            - LN4691
     class:
       name: Class
       description: Optional device class. For switches use switch or outlet.

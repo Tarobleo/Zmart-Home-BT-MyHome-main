@@ -21,6 +21,7 @@ from .const import (
     CONF_ADVANCED_SHUTTER,
     CONF_BUS_INTERFACE,
     CONF_DEVICE_CLASS,
+    CONF_DEVICE_MODEL,
     CONF_DIMMABLE,
     CONF_ENTITY_NAME,
     CONF_PLATFORMS,
@@ -38,6 +39,19 @@ from .gateway import MyHOMEGatewayHandler
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS = ["light", "switch", "cover", "climate", "binary_sensor", "sensor", "update"]
 CREATE_ENTITY_PLATFORMS = {"light", "switch", "cover", "binary_sensor", "sensor"}
+DEVICE_MODEL_OPTIONS = {
+    "067219",
+    "BMSW1005",
+    "F411/4",
+    "F417U2",
+    "F418",
+    "F422",
+    "F430R8",
+    "H4652/2",
+    "HC/HS/HD4659",
+    "LN4652",
+    "LN4691",
+}
 
 
 def _slugify(value: str) -> str:
@@ -81,6 +95,7 @@ def _build_entity_config(platform: str, data: dict) -> dict:
     optional_string_fields = {
         CONF_BUS_INTERFACE: "interface",
         CONF_ENTITY_NAME: "entity_name",
+        CONF_DEVICE_MODEL: "model",
         "icon": "icon",
         "icon_on": "icon_on",
     }
@@ -365,6 +380,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         if not name or not where:
             LOGGER.error("Missing name or where, could not create entity.")
             return False
+        model = call.data.get("model")
+        if model not in (None, "") and str(model) not in DEVICE_MODEL_OPTIONS:
+            LOGGER.warning(
+                "Creating MyHome entity with unknown device model `%s`.",
+                model,
+            )
 
         async with aiofiles.open(_config_file_path, mode="r") as yaml_file:
             raw_config = yaml.safe_load(await yaml_file.read()) or {}
