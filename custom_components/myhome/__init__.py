@@ -69,6 +69,19 @@ def _next_device_id(devices: dict, requested_id: str) -> str:
     return f"{requested_id}_{counter}"
 
 
+def _entity_exists(devices: dict, entity: dict) -> bool:
+    requested_where = str(entity.get(CONF_WHERE, ""))
+    requested_interface = str(entity.get(CONF_BUS_INTERFACE, ""))
+    for device in devices.values():
+        if not isinstance(device, dict):
+            continue
+        existing_where = str(device.get(CONF_WHERE, ""))
+        existing_interface = str(device.get(CONF_BUS_INTERFACE, ""))
+        if existing_where == requested_where and existing_interface == requested_interface:
+            return True
+    return False
+
+
 def _find_raw_gateway_key(config: dict, gateway_mac=None):
     if not config:
         return None
@@ -406,11 +419,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         gateway_config.setdefault(platform, {})
         requested_id = call.data.get("device_id") or _slugify(str(name))
         device_id = _next_device_id(gateway_config[platform], _slugify(str(requested_id)))
+        entity_config = _build_entity_config(platform, call.data)
 
-        gateway_config[platform][device_id] = _build_entity_config(
-            platform,
-            call.data,
-        )
+        if _entity_exists(gateway_config[platform], entity_config):
+            LOGGER.info(
+                "MyHome %s entity with where `%s` already exists in %s, skipping.",
+                platform,
+                entity_config[CONF_WHERE],
+                _config_file_path,
+            )
+            return True
+
+        gateway_config[platform][device_id] = entity_config
 
         try:
             config_schema(copy.deepcopy(updated_config))

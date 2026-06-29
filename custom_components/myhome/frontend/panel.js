@@ -237,7 +237,7 @@ class ZmartMyhomePanel extends HTMLElement {
         }
         .toolbar {
           display: grid;
-          grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 180px)) auto auto auto auto;
+          grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 180px)) auto auto auto auto auto;
           gap: 8px;
           margin-bottom: 16px;
           align-items: center;
@@ -327,6 +327,7 @@ class ZmartMyhomePanel extends HTMLElement {
               <option value="status">status</option>
             </select>
             <button id="clear-filter" type="button">Reset</button>
+            <button id="create-found" type="button">Gefundene anlegen</button>
             <button id="clear-monitor" type="button">Leeren</button>
             <button id="download-csv" type="button">CSV</button>
             <button id="download-json" type="button">JSON</button>
@@ -397,6 +398,7 @@ class ZmartMyhomePanel extends HTMLElement {
     this.querySelector("#download-csv")?.addEventListener("click", () => this.downloadCsv());
     this.querySelector("#download-json")?.addEventListener("click", () => this.downloadJson());
     this.querySelector("#clear-monitor")?.addEventListener("click", () => this.clearMonitor());
+    this.querySelector("#create-found")?.addEventListener("click", () => this.createFoundEntities());
   }
 
   updateFilterOptions() {
@@ -544,6 +546,37 @@ class ZmartMyhomePanel extends HTMLElement {
     return button;
   }
 
+  creatableEntries() {
+    const seen = new Set();
+    return this.filteredEntries().filter((entry) => {
+      const parsed = entry.parsed || {};
+      const platform = parsed.suggested_domain || parsed.domain || "";
+      if (parsed.matched || !parsed.where || !platform || !["light", "switch", "cover", "binary_sensor", "sensor"].includes(platform)) {
+        return false;
+      }
+      const key = `${platform}:${parsed.where}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  entityDataFromEntry(entry) {
+    const parsed = entry.parsed || {};
+    const platform = parsed.suggested_domain || parsed.domain || "light";
+    const data = {
+      platform,
+      name: parsed.description || parsed.room || `${parsed.type || "MyHome"} ${parsed.where}`,
+      where: parsed.where,
+    };
+    if (entry.gateway) data.gateway = entry.gateway;
+    if (parsed.model) data.model = parsed.model;
+    if (platform === "switch") data.class = "switch";
+    return data;
+  }
+
   async createEntityFromEntry(entry) {
     const parsed = entry.parsed || {};
     const defaultPlatform = parsed.suggested_domain || parsed.domain || "light";
@@ -568,6 +601,38 @@ class ZmartMyhomePanel extends HTMLElement {
 
     await this._hass.callService("myhome", "create_entity", data);
     window.alert("Entität wurde in myhome.yaml angelegt. Bitte Integration neu laden.");
+  }
+
+  async createFoundEntities() {
+    const entries = this.creatableEntries();
+    if (!entries.length) {
+      window.alert("Keine neuen gefundenen Identitäten in der aktuellen Ansicht.");
+      return;
+    }
+
+    if (!window.confirm(`${entries.length} gefundene Identitäten in myhome.yaml anlegen?`)) {
+      return;
+    }
+
+    const button = this.querySelector("#create-found");
+    if (button) button.disabled = true;
+    let created = 0;
+    let failed = 0;
+    try {
+      for (const entry of entries) {
+        try {
+          await this._hass.callService("myhome", "create_entity", this.entityDataFromEntry(entry));
+          created += 1;
+        } catch (err) {
+          failed += 1;
+        }
+      }
+    } finally {
+      if (button) button.disabled = false;
+    }
+
+    window.alert(`${created} Identitäten angelegt${failed ? `, ${failed} fehlgeschlagen` : ""}. Bitte Integration neu laden.`);
+    await this.loadData();
   }
 
   download(filename, content, type) {
