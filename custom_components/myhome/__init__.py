@@ -145,6 +145,7 @@ async def async_setup(hass, config):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     if entry.data[CONF_MAC] not in hass.data[DOMAIN]:
         hass.data[DOMAIN][entry.data[CONF_MAC]] = {}
+    hass.data[DOMAIN].pop("_bus_monitor_seen", None)
 
     _config_file_path = (
         str(entry.options[CONF_FILE_PATH])

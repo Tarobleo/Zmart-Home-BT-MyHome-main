@@ -88,7 +88,7 @@ def _append_bus_monitor_entry(hass, gateway: str, message, direction: str) -> No
         dedupe_key = (gateway, direction, str(message))
         now = datetime.now().timestamp()
         seen = domain_data.setdefault("_bus_monitor_seen", {})
-        if now - seen.get(dedupe_key, 0) < 2:
+        if now - seen.get(dedupe_key, 0) < 10:
             return
         seen[dedupe_key] = now
         if len(seen) > 1000:

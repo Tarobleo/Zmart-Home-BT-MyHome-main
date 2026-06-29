@@ -152,7 +152,6 @@ class MyHOMEDryContact(MyHOMEEntity, BinarySensorEntity):
     async def async_added_to_hass(self):
         """When entity is added to hass."""
         self._hass.data[DOMAIN][self._gateway_handler.mac][CONF_PLATFORMS][self._platform][self._device_id][CONF_ENTITIES][self._attr_device_class] = self
-        await self.async_update()
 
     async def async_will_remove_from_hass(self):
         """When entity is removed from hass."""
@@ -217,7 +216,6 @@ class MyHOMEAuxiliary(MyHOMEEntity, BinarySensorEntity):
     async def async_added_to_hass(self):
         """When entity is added to hass."""
         self._hass.data[DOMAIN][self._gateway_handler.mac][CONF_PLATFORMS][self._platform][self._device_id][CONF_ENTITIES][self._attr_device_class] = self
-        await self.async_update()
 
     async def async_will_remove_from_hass(self):
         """When entity is removed from hass."""
@@ -286,13 +284,10 @@ class MyHOMEMotionSensor(MyHOMEEntity, BinarySensorEntity, RestoreEntity):
     async def async_added_to_hass(self):
         """When entity is added to hass."""
         self._hass.data[DOMAIN][self._gateway_handler.mac][CONF_PLATFORMS][self._platform][self._device_id][CONF_ENTITIES][self._attr_device_class] = self
-        await self._gateway_handler.send_status_request(OWNLightingCommand.get_pir_sensitivity(self._where))
-        await self._gateway_handler.send_status_request(OWNLightingCommand.get_motion_timeout(self._where))
         state = await self.async_get_last_state()
         if state:
             self._attr_is_on = state.state == STATE_ON
             self._last_updated = state.last_updated
-        await self.async_update()
 
     async def async_will_remove_from_hass(self):
         """When entity is removed from hass."""

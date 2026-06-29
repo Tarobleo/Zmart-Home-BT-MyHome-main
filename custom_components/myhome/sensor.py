@@ -251,7 +251,6 @@ class MyHOMEPowerSensor(MyHOMEEntity, SensorEntity):
         self._hass.data[DOMAIN][self._gateway_handler.mac][CONF_PLATFORMS][
             self._platform
         ][self._device_id][CONF_ENTITIES][self._attr_device_class] = self
-        await self.async_update()
 
     async def async_will_remove_from_hass(self):
         """When entity is removed from hass."""
@@ -347,7 +346,6 @@ class MyHOMEEnergySensor(MyHOMEEntity, SensorEntity):
         self._hass.data[DOMAIN][self._gateway_handler.mac][CONF_PLATFORMS][
             self._platform
         ][self._device_id][CONF_ENTITIES][self._entity_specific_id] = self
-        await self.async_update()
 
     async def async_will_remove_from_hass(self):
         """When entity is removed from hass."""
@@ -466,7 +464,6 @@ class MyHOMETemperatureSensor(MyHOMEEntity, SensorEntity):
         self._hass.data[DOMAIN][self._gateway_handler.mac][CONF_PLATFORMS][
             self._platform
         ][self._device_id][CONF_ENTITIES][self._attr_device_class] = self
-        await self.async_update()
 
     async def async_will_remove_from_hass(self):
         """When entity is removed from hass."""
@@ -560,7 +557,6 @@ class MyHOMEIlluminanceSensor(MyHOMEEntity, SensorEntity):
         self._hass.data[DOMAIN][self._gateway_handler.mac][CONF_PLATFORMS][
             self._platform
         ][self._device_id][CONF_ENTITIES][self._attr_device_class] = self
-        await self.async_update()
 
     async def async_will_remove_from_hass(self):
         """When entity is removed from hass."""
