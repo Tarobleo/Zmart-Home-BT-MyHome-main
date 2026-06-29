@@ -167,27 +167,28 @@ class MyHOMEGatewayHandler:
         self.is_connected = True
 
         while not self._terminate_listener:
-            message = await _event_session.get_next()
-            LOGGER.debug("%s Message received: `%s`", self.log_id, message)
             try:
-                _append_bus_monitor_entry(self.hass, self.log_id, message, "in")
-            except Exception:  # noqa: BLE001
-                pass
-            if self.generate_events:
-                if isinstance(message, OWNMessage):
-                    _event_content = {"gateway": str(self.gateway.host)}
-                    _event_content.update(message.event_content)
-                    self.hass.bus.async_fire("myhome_message_event", _event_content)
-                else:
-                    self.hass.bus.async_fire("myhome_message_event", {"gateway": str(self.gateway.host), "message": str(message)})
+                message = await _event_session.get_next()
+                LOGGER.debug("%s Message received: `%s`", self.log_id, message)
+                try:
+                    _append_bus_monitor_entry(self.hass, self.log_id, message, "in")
+                except Exception:  # noqa: BLE001
+                    pass
+                if self.generate_events:
+                    if isinstance(message, OWNMessage):
+                        _event_content = {"gateway": str(self.gateway.host)}
+                        _event_content.update(message.event_content)
+                        self.hass.bus.async_fire("myhome_message_event", _event_content)
+                    else:
+                        self.hass.bus.async_fire("myhome_message_event", {"gateway": str(self.gateway.host), "message": str(message)})
 
-            if not isinstance(message, OWNMessage):
-                LOGGER.warning(
-                    "%s Data received is not a message: `%s`",
-                    self.log_id,
-                    message,
-                )
-            elif isinstance(message, OWNEnergyEvent):
+                if not isinstance(message, OWNMessage):
+                    LOGGER.warning(
+                        "%s Data received is not a message: `%s`",
+                        self.log_id,
+                        message,
+                    )
+                elif isinstance(message, OWNEnergyEvent):
                 if SENSOR in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS] and message.entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][SENSOR]:
                     for _entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][SENSOR][message.entity][CONF_ENTITIES]:
                         if isinstance(
