@@ -14,7 +14,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
         config={
             "_panel_custom": {
                 "name": "zmart-myhome-panel",
-                "js_url": "/myhome_static/panel.js?v=20260629-11",
+                "js_url": "/myhome_static/panel.js?v=20260629-12",
                 "embed_iframe": False,
                 "trust_external": False,
             }
