@@ -60,7 +60,7 @@ DEVICE_MODEL_OPTIONS = {
     "LN4691",
 }
 DEFAULT_DEVICE_MODEL_BY_PLATFORM = {
-    "light": {False: "F417U2", True: "F430R8"},
+    "light": {False: "F417U2", True: "F418"},
 }
 
 

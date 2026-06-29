@@ -87,6 +87,8 @@ const HARDWARE_MODELS = [
   "LN4691",
 ];
 
+const DIMMER_MODELS = new Set(["F418", "F430R8"]);
+
 function getMessageParts(raw) {
   const message = String(raw || "")
     .replace(/^`|`$/g, "")
@@ -240,11 +242,13 @@ function inferAutoEntityOptions(parsed) {
 class ZmartMyhomePanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
+    this._collapsedGroups = this._collapsedGroups || new Set();
     this.render();
     this.renderRows();
   }
 
   connectedCallback() {
+    this._collapsedGroups = this._collapsedGroups || new Set();
     this.render();
     this.loadData();
     this._interval = window.setInterval(() => this.loadData(), 1000);
@@ -338,6 +342,24 @@ class ZmartMyhomePanel extends HTMLElement {
           position: sticky;
           top: 0;
           z-index: 1;
+        }
+        .group-toggle {
+          align-items: center;
+          background: transparent;
+          border: 0;
+          color: inherit;
+          display: inline-flex;
+          font: inherit;
+          font-weight: 700;
+          gap: 8px;
+          min-height: 0;
+          padding: 0;
+          text-align: left;
+        }
+        .group-toggle-icon {
+          display: inline-block;
+          font-size: 14px;
+          width: 16px;
         }
         code {
           color: var(--primary-color);
@@ -476,12 +498,16 @@ class ZmartMyhomePanel extends HTMLElement {
     this.querySelector("#type-filter")?.addEventListener("change", () => this.renderRows());
     this.querySelector("#room-filter")?.addEventListener("change", () => this.renderRows());
     this.querySelector("#direction-filter")?.addEventListener("change", () => this.renderRows());
-    this.querySelector("#group-by")?.addEventListener("change", () => this.renderRows());
+    this.querySelector("#group-by")?.addEventListener("change", () => {
+      this._collapsedGroups = new Set();
+      this.renderRows();
+    });
     this.querySelector("#clear-filter")?.addEventListener("click", () => {
       ["#search", "#type-filter", "#room-filter", "#direction-filter", "#group-by"].forEach((selector) => {
         const control = this.querySelector(selector);
         if (control) control.value = "";
       });
+      this._collapsedGroups = new Set();
       this.renderRows();
     });
     this.querySelector("#download-csv")?.addEventListener("click", () => this.downloadCsv());
@@ -572,8 +598,12 @@ class ZmartMyhomePanel extends HTMLElement {
     });
 
     groups.forEach((groupEntries, group) => {
-      nodes.push(this.createGroupRow(`${group} (${groupEntries.length})`));
-      groupEntries.forEach((entry) => nodes.push(this.createTableRow(entry)));
+      const groupKey = this.groupKey(groupBy, group);
+      const collapsed = this._collapsedGroups?.has(groupKey);
+      nodes.push(this.createGroupRow(group, groupEntries.length, groupKey, collapsed));
+      if (!collapsed) {
+        groupEntries.forEach((entry) => nodes.push(this.createTableRow(entry)));
+      }
     });
     return nodes;
   }
@@ -588,12 +618,41 @@ class ZmartMyhomePanel extends HTMLElement {
     return "";
   }
 
-  createGroupRow(label) {
+  groupKey(groupBy, label) {
+    return `${groupBy}:${label}`;
+  }
+
+  toggleGroup(groupKey) {
+    this._collapsedGroups = this._collapsedGroups || new Set();
+    if (this._collapsedGroups.has(groupKey)) {
+      this._collapsedGroups.delete(groupKey);
+    } else {
+      this._collapsedGroups.add(groupKey);
+    }
+    this.renderRows();
+  }
+
+  createGroupRow(label, count, groupKey, collapsed) {
     const tr = document.createElement("tr");
     tr.className = "group-row";
     const td = document.createElement("td");
     td.colSpan = 15;
-    td.textContent = label;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "group-toggle";
+    button.addEventListener("click", () => this.toggleGroup(groupKey));
+
+    const icon = document.createElement("span");
+    icon.className = "group-toggle-icon";
+    icon.textContent = collapsed ? ">" : "v";
+    button.appendChild(icon);
+
+    const text = document.createElement("span");
+    text.textContent = `${label} (${count})`;
+    button.appendChild(text);
+
+    td.appendChild(button);
     tr.appendChild(td);
     return tr;
   }
@@ -732,7 +791,7 @@ class ZmartMyhomePanel extends HTMLElement {
   defaultModelForEntry(parsed, platform, options = {}) {
     if (platform !== "light") return "";
     const text = [parsed.type, parsed.description, parsed.room, parsed.decoded].join(" ").toLowerCase();
-    if (options.dimmable === true || /dimmer|niveau|level/.test(text)) return "F430R8";
+    if (options.dimmable === true || /dimmer|niveau|level/.test(text)) return "F418";
     return "F417U2";
   }
 
@@ -757,9 +816,12 @@ class ZmartMyhomePanel extends HTMLElement {
     }
     if (entry.gateway) data.gateway = entry.gateway;
     const defaultModel = this.defaultModelForEntry(parsed, platform, options);
-    if (selectedModel || parsed.model || defaultModel) data.model = selectedModel || parsed.model || defaultModel;
+    const model = selectedModel || parsed.model || defaultModel;
+    if (model) data.model = model;
     if (options.class) data.class = options.class;
-    if (options.dimmable !== undefined) data.dimmable = options.dimmable;
+    if (options.dimmable !== undefined || DIMMER_MODELS.has(model)) {
+      data.dimmable = options.dimmable === true || DIMMER_MODELS.has(model);
+    }
     if (options.advanced !== undefined) data.advanced = options.advanced;
     if (options.heat !== undefined) data.heat = options.heat;
     if (options.cool !== undefined) data.cool = options.cool;
@@ -791,6 +853,7 @@ class ZmartMyhomePanel extends HTMLElement {
     const cool = platform === "climate" ? window.confirm("Kuehlen unterstuetzen?") : false;
     const fan = platform === "climate" ? window.confirm("Luefter unterstuetzen?") : false;
     const model = selectedModel || parsed.model || this.defaultModelForEntry(parsed, platform, { dimmable });
+    const effectiveDimmable = dimmable || DIMMER_MODELS.has(model);
 
     const data = {
       platform,
@@ -803,7 +866,7 @@ class ZmartMyhomePanel extends HTMLElement {
     }
     if (model) data.model = model;
     if (entityClass) data.class = entityClass;
-    if (platform === "light") data.dimmable = dimmable;
+    if (platform === "light") data.dimmable = effectiveDimmable;
     if (platform === "cover") data.advanced = advanced;
     if (platform === "climate") {
       data.heat = heat;
