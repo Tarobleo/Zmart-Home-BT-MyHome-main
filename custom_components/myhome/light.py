@@ -39,6 +39,9 @@ from .const import (
 from .myhome_device import MyHOMEEntity
 from .gateway import MyHOMEGatewayHandler
 
+DIMMER_MODELS = {"F418", "F430R8"}
+NO_STATUS_REQUEST_DIMMER_MODELS = {"F418"}
+
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     if PLATFORM not in hass.data[DOMAIN][config_entry.data[CONF_MAC]][CONF_PLATFORMS]:
@@ -122,6 +125,7 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
 
         self._attr_supported_features = 0
         self._attr_supported_color_modes: set[ColorMode] = set()
+        dimmable = dimmable or self._model_name in DIMMER_MODELS
 
         if dimmable:
             self._attr_supported_color_modes.add(ColorMode.BRIGHTNESS)
@@ -149,11 +153,26 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
         self._attr_brightness = None
         self._attr_brightness_pct = None
 
+    @property
+    def _model_name(self):
+        return str(self._model or "").upper()
+
+    @property
+    def _skip_status_request(self):
+        return self._model_name in NO_STATUS_REQUEST_DIMMER_MODELS
+
     async def async_update(self):
         """Update the entity.
 
         Only used by the generic entity update service.
         """
+        if self._skip_status_request:
+            LOGGER.debug(
+                "%s Skipping active status request for model %s.",
+                self._gateway_handler.log_id,
+                self._model,
+            )
+            return
         if ColorMode.BRIGHTNESS in self._attr_supported_color_modes:
             await self._gateway_handler.send_status_request(OWNLightingCommand.get_brightness(self._full_where))
         else:
