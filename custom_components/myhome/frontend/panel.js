@@ -110,6 +110,7 @@ function parseTelegram(raw) {
   const device = findDeviceInfo(message, parts);
   let action = "";
   let value = "";
+  let decoded = "";
 
   if (who === "1") {
     if (isStatus) {
@@ -123,34 +124,47 @@ function parseTelegram(raw) {
         } else if (!Number.isNaN(statusValue)) {
           value = String(statusValue);
         }
+        decoded = value ? `Lichtstatus: ${value}` : "";
       }
     } else if (parts[1] === "1") {
       action = "Ein";
+      decoded = "Lichtbefehl: Ein";
     } else if (parts[1] === "0") {
       action = "Aus";
+      decoded = "Lichtbefehl: Aus";
     } else if (parts[1] === "9") {
       action = "Dimmer/Level";
+      decoded = "Lichtbefehl: Dimmer/Level";
     } else if (parts[1]) {
       action = `Licht ${parts[1]}`;
+      decoded = action;
     }
   } else if (who === "2") {
     if (parts[1] === "1") {
       action = "Öffnen/Hoch";
+      decoded = "Rollladenbefehl: Öffnen/Hoch";
     } else if (parts[1] === "2") {
       action = "Schließen/Runter";
+      decoded = "Rollladenbefehl: Schließen/Runter";
     } else if (parts[1] === "0") {
       action = "Stopp";
+      decoded = "Rollladenbefehl: Stopp";
     } else if (isStatus) {
       action = parts.length > 3 ? "Statusantwort" : "Statusabfrage";
+      decoded = parts.length > 3 ? `Rollladenstatus: ${parts.slice(2).join("/")}` : action;
     } else if (parts[1]) {
       action = `Rollladen ${parts[1]}`;
+      decoded = action;
     }
   } else if (who === "4") {
     action = isStatus ? "Temperatur/Heizung Status" : "Temperatur/Heizung";
+    decoded = `${action}: ${parts.slice(1).join("/")}`;
   } else if (who === "18") {
     action = isStatus ? "Energie Status" : "Energie";
+    decoded = `${action}: ${parts.slice(1).join("/")}`;
   } else if (who) {
     action = isStatus ? `WHO ${who} Status` : `WHO ${who}`;
+    decoded = `${action}: ${parts.slice(1).join("/")}`;
   }
 
   return {
@@ -158,6 +172,7 @@ function parseTelegram(raw) {
     who,
     action,
     value,
+    decoded,
   };
 }
 
@@ -332,6 +347,7 @@ class ZmartMyhomePanel extends HTMLElement {
                   <th>Beschreibung</th>
                   <th>Aktion</th>
                   <th>Wert</th>
+                  <th>Dekodiert</th>
                   <th>Anlegen</th>
                   <th>Telegramm</th>
                 </tr>
@@ -423,6 +439,7 @@ class ZmartMyhomePanel extends HTMLElement {
         parsed.description,
         parsed.action,
         parsed.value,
+        parsed.decoded,
       ].join(" ").toLowerCase();
       return (!search || haystack.includes(search))
         && (!type || parsed.type === type)
@@ -455,6 +472,7 @@ class ZmartMyhomePanel extends HTMLElement {
         parsed.description,
         parsed.action,
         parsed.value,
+        parsed.decoded,
       ].forEach((value) => {
         const td = document.createElement("td");
         td.textContent = value || "";
@@ -506,6 +524,7 @@ class ZmartMyhomePanel extends HTMLElement {
       model: entry.parsed?.model || "",
       action: entry.parsed?.action || "",
       value: entry.parsed?.value || "",
+      decoded: entry.parsed?.decoded || "",
       monitor_version: entry.monitor_version || this._monitorVersion || "",
       raw: entry.raw || "",
     }));
@@ -563,7 +582,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
   downloadCsv() {
     const rows = this.exportRows();
-    const headers = ["time", "gateway", "direction", "who", "where", "type", "domain", "model", "room", "description", "action", "value", "monitor_version", "raw"];
+    const headers = ["time", "gateway", "direction", "who", "where", "type", "domain", "model", "room", "description", "action", "value", "decoded", "monitor_version", "raw"];
     const csv = [
       headers.map(escapeCsv).join(","),
       ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(",")),

@@ -13,7 +13,7 @@ from .const import (
     DOMAIN,
 )
 
-MONITOR_VERSION = "20260629-4"
+MONITOR_VERSION = "20260629-5"
 
 
 PLATFORM_TYPES = {
@@ -212,6 +212,89 @@ def _telegram_action(who, parts, is_status):
     return action, value
 
 
+def _decode_light_level(value):
+    if not value or not str(value).isdigit():
+        return value or ""
+    numeric = int(value)
+    if numeric == 0:
+        return "Aus"
+    if numeric == 1:
+        return "Ein"
+    if numeric == 100:
+        return "Aus"
+    if 101 <= numeric <= 200:
+        return f"{numeric - 100}%"
+    if 2 <= numeric <= 9:
+        return f"{numeric * 10}%"
+    return str(value)
+
+
+def _decoded_values(label, where, dimension, values):
+    details = []
+    if where:
+        details.append(f"Where {where}")
+    if dimension:
+        details.append(f"Dimension {dimension}")
+    if values:
+        details.append(f"Werte {'/'.join(values)}")
+    return f"{label}: {', '.join(details)}" if details else label
+
+
+def _decode_telegram(who, parts, raw, action, value, where):
+    if not parts:
+        return ""
+
+    is_status = str(raw or "").startswith("*#")
+
+    if who == "1":
+        if is_status:
+            dimension = parts[2] if len(parts) > 2 else ""
+            values = parts[3:]
+            if dimension == "1" and values:
+                return f"Lichtstatus {where or parts[1]}: {_decode_light_level(values[0])}"
+            if dimension == "2" and values:
+                return _decoded_values("Lichtstatus", where or parts[1], dimension, values)
+            return _decoded_values("Lichtstatus", where, dimension, values)
+        if len(parts) > 1:
+            return f"Lichtbefehl {where}: {_decode_light_level(parts[1])}"
+
+    if who == "2":
+        if is_status:
+            dimension = parts[2] if len(parts) > 2 else ""
+            values = parts[3:]
+            return _decoded_values("Rollladenstatus", where, dimension, values)
+        if action:
+            return f"Rollladenbefehl {where}: {action}"
+
+    if who == "4":
+        dimension = parts[2] if is_status and len(parts) > 2 else ""
+        values = parts[3:] if is_status else parts[2:]
+        return _decoded_values("Heizung", where, dimension, values)
+
+    if who == "13":
+        if len(parts) >= 5 and parts[1] == "#0":
+            return f"Gateway-Zeit: {parts[2]}:{parts[3]}:{parts[4]}"
+        if len(parts) >= 6 and parts[1] == "#1":
+            return f"Gateway-Datum: {'/'.join(parts[2:])}"
+        return _decoded_values("Gateway", "", parts[1] if len(parts) > 1 else "", parts[2:])
+
+    if who == "18":
+        dimension = parts[2] if is_status and len(parts) > 2 else ""
+        values = parts[3:] if is_status else parts[2:]
+        return _decoded_values("Energie", where, dimension, values)
+
+    if who == "25":
+        dimension = parts[2] if is_status and len(parts) > 2 else ""
+        values = parts[3:] if is_status else parts[2:]
+        return _decoded_values("Kontakt", where, dimension, values)
+
+    if value:
+        return value
+    if action:
+        return action
+    return f"WHO {who}: {'/'.join(parts[1:])}" if who else "/".join(parts)
+
+
 def _parse_telegram(hass, raw):
     raw_text = str(raw or "")
     is_status = raw_text.startswith("*#")
@@ -220,6 +303,7 @@ def _parse_telegram(hass, raw):
     where = _candidate_where(who, parts, raw_text)
     device = _find_device(hass, who, parts, raw_text)
     action, value = _telegram_action(who, parts, is_status)
+    decoded = _decode_telegram(who, parts, raw_text, action, value, where)
 
     parsed = {
         "who": who,
@@ -233,6 +317,7 @@ def _parse_telegram(hass, raw):
         "address": _friendly_address(where),
         "action": action,
         "value": value,
+        "decoded": decoded,
         "matched": False,
     }
     if device:
