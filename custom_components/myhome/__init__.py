@@ -346,22 +346,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             continue
         entities_to_be_removed.append(entity_entry.entity_id)
 
-    if entities_to_be_removed:
-        LOGGER.warning(
-            "Keeping %s stale MyHome entity registry entries instead of removing them automatically: %s",
-            len(entities_to_be_removed),
-            entities_to_be_removed,
-        )
+    for entity_id in entities_to_be_removed:
+        LOGGER.info("Removing stale MyHome entity registry entry `%s`.", entity_id)
+        entity_registry.async_remove(entity_id)
 
     if gateway_device_entry.id in devices_to_be_removed:
         devices_to_be_removed.remove(gateway_device_entry.id)
 
-    if devices_to_be_removed:
-        LOGGER.warning(
-            "Keeping %s stale MyHome device registry entries instead of removing them automatically: %s",
-            len(devices_to_be_removed),
-            devices_to_be_removed,
-        )
+    for device_id in devices_to_be_removed:
+        if (
+            len(
+                er.async_entries_for_device(
+                    entity_registry, device_id, include_disabled_entities=True
+                )
+            )
+            == 0
+        ):
+            LOGGER.info("Removing stale MyHome device registry entry `%s`.", device_id)
+            device_registry.async_remove_device(device_id)
 
     # Defining the services
     async def handle_sync_time(call):
