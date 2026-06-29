@@ -237,7 +237,7 @@ class ZmartMyhomePanel extends HTMLElement {
         }
         .toolbar {
           display: grid;
-          grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 180px)) auto auto auto auto auto;
+          grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 180px)) minmax(150px, 190px) auto auto auto auto;
           gap: 8px;
           margin-bottom: 16px;
           align-items: center;
@@ -255,6 +255,16 @@ class ZmartMyhomePanel extends HTMLElement {
         }
         button {
           cursor: pointer;
+        }
+        button.primary {
+          background: #1b7f46;
+          border-color: #1b7f46;
+          color: #fff;
+          font-weight: 700;
+        }
+        button.primary:disabled {
+          cursor: wait;
+          opacity: 0.65;
         }
         .table-wrap {
           overflow-x: auto;
@@ -326,8 +336,19 @@ class ZmartMyhomePanel extends HTMLElement {
               <option value="out">out</option>
               <option value="status">status</option>
             </select>
+            <select id="create-type">
+              <option value="auto">Automatisch</option>
+              <option value="light">Licht</option>
+              <option value="dimmer">Dimmer</option>
+              <option value="switch">Schalter</option>
+              <option value="outlet">Steckdose</option>
+              <option value="cover">Rollladen</option>
+              <option value="advanced_cover">Rollladen Position</option>
+              <option value="binary_sensor">Binärsensor</option>
+              <option value="sensor">Sensor</option>
+            </select>
             <button id="clear-filter" type="button">Reset</button>
-            <button id="create-found" type="button">Gefundene anlegen</button>
+            <button id="create-found" class="primary" type="button">Gefundene anlegen</button>
             <button id="clear-monitor" type="button">Leeren</button>
             <button id="download-csv" type="button">CSV</button>
             <button id="download-json" type="button">JSON</button>
@@ -534,7 +555,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
   createEntityButton(entry) {
     const parsed = entry.parsed || {};
-    const platform = parsed.suggested_domain || parsed.domain || "";
+    const platform = this.entityOptionsForEntry(entry).platform;
     if (parsed.matched || !parsed.where || !platform || !["light", "switch", "cover", "binary_sensor", "sensor"].includes(platform)) {
       return null;
     }
@@ -550,7 +571,7 @@ class ZmartMyhomePanel extends HTMLElement {
     const seen = new Set();
     return this.filteredEntries().filter((entry) => {
       const parsed = entry.parsed || {};
-      const platform = parsed.suggested_domain || parsed.domain || "";
+      const platform = this.entityOptionsForEntry(entry).platform;
       if (parsed.matched || !parsed.where || !platform || !["light", "switch", "cover", "binary_sensor", "sensor"].includes(platform)) {
         return false;
       }
@@ -563,9 +584,27 @@ class ZmartMyhomePanel extends HTMLElement {
     });
   }
 
-  entityDataFromEntry(entry) {
+  selectedCreateType() {
+    return this.querySelector("#create-type")?.value || "auto";
+  }
+
+  entityOptionsForEntry(entry, selectedType = this.selectedCreateType()) {
     const parsed = entry.parsed || {};
-    const platform = parsed.suggested_domain || parsed.domain || "light";
+    if (selectedType === "light") return { platform: "light", dimmable: false };
+    if (selectedType === "dimmer") return { platform: "light", dimmable: true };
+    if (selectedType === "switch") return { platform: "switch", class: "switch" };
+    if (selectedType === "outlet") return { platform: "switch", class: "outlet" };
+    if (selectedType === "cover") return { platform: "cover", advanced: false };
+    if (selectedType === "advanced_cover") return { platform: "cover", advanced: true };
+    if (selectedType === "binary_sensor") return { platform: "binary_sensor" };
+    if (selectedType === "sensor") return { platform: "sensor" };
+    return { platform: parsed.suggested_domain || parsed.domain || "light" };
+  }
+
+  entityDataFromEntry(entry, selectedType = this.selectedCreateType()) {
+    const parsed = entry.parsed || {};
+    const options = this.entityOptionsForEntry(entry, selectedType);
+    const platform = options.platform;
     const data = {
       platform,
       name: parsed.description || parsed.room || `${parsed.type || "MyHome"} ${parsed.where}`,
@@ -573,13 +612,16 @@ class ZmartMyhomePanel extends HTMLElement {
     };
     if (entry.gateway) data.gateway = entry.gateway;
     if (parsed.model) data.model = parsed.model;
-    if (platform === "switch") data.class = "switch";
+    if (options.class) data.class = options.class;
+    if (options.dimmable !== undefined) data.dimmable = options.dimmable;
+    if (options.advanced !== undefined) data.advanced = options.advanced;
     return data;
   }
 
   async createEntityFromEntry(entry) {
     const parsed = entry.parsed || {};
-    const defaultPlatform = parsed.suggested_domain || parsed.domain || "light";
+    const defaultOptions = this.entityOptionsForEntry(entry);
+    const defaultPlatform = defaultOptions.platform || "light";
     const platform = window.prompt("Platform", defaultPlatform);
     if (!platform) return;
 
@@ -588,8 +630,14 @@ class ZmartMyhomePanel extends HTMLElement {
 
     const model = window.prompt("Modell optional", parsed.model || "");
     const entityClass = platform === "switch"
-      ? window.prompt("Class optional: switch oder outlet", "switch")
+      ? window.prompt("Class optional: switch oder outlet", defaultOptions.class || "switch")
       : "";
+    const dimmable = platform === "light"
+      ? window.confirm("Als Dimmer anlegen?")
+      : false;
+    const advanced = platform === "cover"
+      ? window.confirm("Als Rollladen mit Positionssteuerung anlegen?")
+      : false;
 
     const data = {
       platform,
@@ -598,6 +646,8 @@ class ZmartMyhomePanel extends HTMLElement {
     };
     if (model) data.model = model;
     if (entityClass) data.class = entityClass;
+    if (platform === "light") data.dimmable = dimmable;
+    if (platform === "cover") data.advanced = advanced;
 
     await this._hass.callService("myhome", "create_entity", data);
     window.alert("Entität wurde in myhome.yaml angelegt. Bitte Integration neu laden.");
@@ -610,7 +660,9 @@ class ZmartMyhomePanel extends HTMLElement {
       return;
     }
 
-    if (!window.confirm(`${entries.length} gefundene Identitäten in myhome.yaml anlegen?`)) {
+    const selectedType = this.selectedCreateType();
+    const typeLabel = this.querySelector("#create-type")?.selectedOptions?.[0]?.textContent || "Automatisch";
+    if (!window.confirm(`${entries.length} gefundene Identitäten als "${typeLabel}" in myhome.yaml anlegen?`)) {
       return;
     }
 
@@ -621,7 +673,7 @@ class ZmartMyhomePanel extends HTMLElement {
     try {
       for (const entry of entries) {
         try {
-          await this._hass.callService("myhome", "create_entity", this.entityDataFromEntry(entry));
+          await this._hass.callService("myhome", "create_entity", this.entityDataFromEntry(entry, selectedType));
           created += 1;
         } catch (err) {
           failed += 1;
