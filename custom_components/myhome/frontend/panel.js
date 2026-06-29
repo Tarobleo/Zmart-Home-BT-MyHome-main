@@ -216,6 +216,9 @@ function inferAutoEntityOptions(parsed) {
   if (text.includes("steckdose") || text.includes("prise command")) {
     return { platform: "switch", class: "outlet" };
   }
+  if (text.includes("thermostat") || text.includes("heizung") || text.includes("chauffage")) {
+    return { platform: "climate", heat: true, cool: false, fan: false, standalone: false, central: false };
+  }
   if (text.includes("rollladen") || text.includes("volet")) {
     return { platform: "cover", advanced: false };
   }
@@ -387,6 +390,7 @@ class ZmartMyhomePanel extends HTMLElement {
               <option value="outlet">Steckdose</option>
               <option value="cover">Rollladen</option>
               <option value="advanced_cover">Rollladen Position</option>
+              <option value="climate">Thermostat</option>
               <option value="binary_sensor">Binärsensor</option>
               <option value="sensor">Sensor</option>
             </select>
@@ -603,7 +607,7 @@ class ZmartMyhomePanel extends HTMLElement {
   createEntityButton(entry) {
     const parsed = entry.parsed || {};
     const platform = this.entityOptionsForEntry(entry).platform;
-    if (parsed.matched || !parsed.where || !platform || !["light", "switch", "cover", "binary_sensor", "sensor"].includes(platform)) {
+    if (parsed.matched || !parsed.where || !platform || !["light", "switch", "cover", "climate", "binary_sensor", "sensor"].includes(platform)) {
       return null;
     }
 
@@ -619,7 +623,7 @@ class ZmartMyhomePanel extends HTMLElement {
     return this.filteredEntries().filter((entry) => {
       const parsed = entry.parsed || {};
       const platform = this.entityOptionsForEntry(entry).platform;
-      if (parsed.matched || !parsed.where || !platform || !["light", "switch", "cover", "binary_sensor", "sensor"].includes(platform)) {
+      if (parsed.matched || !parsed.where || !platform || !["light", "switch", "cover", "climate", "binary_sensor", "sensor"].includes(platform)) {
         return false;
       }
       const key = `${platform}:${parsed.where}`;
@@ -647,6 +651,7 @@ class ZmartMyhomePanel extends HTMLElement {
     if (selectedType === "outlet") return { platform: "switch", class: "outlet" };
     if (selectedType === "cover") return { platform: "cover", advanced: false };
     if (selectedType === "advanced_cover") return { platform: "cover", advanced: true };
+    if (selectedType === "climate") return { platform: "climate", heat: true, cool: false, fan: false, standalone: false, central: false };
     if (selectedType === "binary_sensor") return { platform: "binary_sensor" };
     if (selectedType === "sensor") return { platform: "sensor" };
     return inferAutoEntityOptions(parsed);
@@ -658,6 +663,7 @@ class ZmartMyhomePanel extends HTMLElement {
     if (platform === "cover") return `Rolladen ${where}`;
     if (platform === "light") return `Licht ${where}`;
     if (platform === "switch") return `Schalter ${where}`;
+    if (platform === "climate") return `Thermostat ${where}`;
     if (platform === "binary_sensor") return `Sensor ${where}`;
     if (platform === "sensor") return `Sensor ${where}`;
     return `${fallback} ${where}`.trim();
@@ -682,9 +688,15 @@ class ZmartMyhomePanel extends HTMLElement {
     if (entry.gateway) data.gateway = entry.gateway;
     const defaultModel = this.defaultModelForEntry(parsed, platform, options);
     if (selectedModel || parsed.model || defaultModel) data.model = selectedModel || parsed.model || defaultModel;
+    if (platform === "climate") data.zone = parsed.where || "#0";
     if (options.class) data.class = options.class;
     if (options.dimmable !== undefined) data.dimmable = options.dimmable;
     if (options.advanced !== undefined) data.advanced = options.advanced;
+    if (options.heat !== undefined) data.heat = options.heat;
+    if (options.cool !== undefined) data.cool = options.cool;
+    if (options.fan !== undefined) data.fan = options.fan;
+    if (options.standalone !== undefined) data.standalone = options.standalone;
+    if (options.central !== undefined) data.central = options.central;
     return data;
   }
 
@@ -697,7 +709,6 @@ class ZmartMyhomePanel extends HTMLElement {
     const defaultName = this.defaultEntityName(parsed, platform);
     const name = (window.prompt("Name", defaultName) || defaultName).trim() || defaultName;
 
-    const model = selectedModel || parsed.model || this.defaultModelForEntry(parsed, platform, { dimmable });
     const entityClass = platform === "switch"
       ? window.prompt("Class optional: switch oder outlet", defaultOptions.class || "switch")
       : "";
@@ -707,16 +718,28 @@ class ZmartMyhomePanel extends HTMLElement {
     const advanced = platform === "cover"
       ? window.confirm("Als Rollladen mit Positionssteuerung anlegen?")
       : false;
+    const heat = platform === "climate" ? window.confirm("Heizen unterstuetzen?") : true;
+    const cool = platform === "climate" ? window.confirm("Kuehlen unterstuetzen?") : false;
+    const fan = platform === "climate" ? window.confirm("Luefter unterstuetzen?") : false;
+    const model = selectedModel || parsed.model || this.defaultModelForEntry(parsed, platform, { dimmable });
 
     const data = {
       platform,
       name,
       where: parsed.where,
     };
+    if (platform === "climate") data.zone = parsed.where || "#0";
     if (model) data.model = model;
     if (entityClass) data.class = entityClass;
     if (platform === "light") data.dimmable = dimmable;
     if (platform === "cover") data.advanced = advanced;
+    if (platform === "climate") {
+      data.heat = heat;
+      data.cool = cool;
+      data.fan = fan;
+      data.standalone = false;
+      data.central = false;
+    }
 
     await this._hass.callService("myhome", "create_entity", data);
     window.alert("Entität wurde in myhome.yaml angelegt. Bitte Integration neu laden.");

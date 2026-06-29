@@ -39,6 +39,7 @@ create_entity:
             - light
             - switch
             - cover
+            - climate
             - binary_sensor
             - sensor
     device_id:
@@ -58,6 +59,10 @@ create_entity:
       description: OpenWebNet WHERE address, for example A/PL as 0102.
       required: true
       example: "0102"
+    zone:
+      name: Zone
+      description: Climate zone for thermostats. If empty for climate, #0 is used.
+      example: "#1"
     interface:
       name: Bus interface
       description: Optional local bus interface number.
@@ -94,6 +99,36 @@ create_entity:
     advanced:
       name: Advanced shutter
       description: Enable this for advanced covers with position support.
+      example: false
+      selector:
+        boolean:
+    heat:
+      name: Heating
+      description: Enable heating support for thermostats.
+      example: true
+      selector:
+        boolean:
+    cool:
+      name: Cooling
+      description: Enable cooling support for thermostats.
+      example: false
+      selector:
+        boolean:
+    fan:
+      name: Fan
+      description: Enable fan support for thermostats.
+      example: false
+      selector:
+        boolean:
+    standalone:
+      name: Standalone
+      description: Enable standalone thermostat mode.
+      example: false
+      selector:
+        boolean:
+    central:
+      name: Central
+      description: Mark this thermostat as central unit.
       example: false
       selector:
         boolean:

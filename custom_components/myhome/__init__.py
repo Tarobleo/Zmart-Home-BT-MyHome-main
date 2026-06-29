@@ -27,10 +27,16 @@ from .const import (
     CONF_PLATFORMS,
     CONF_ENTITY,
     CONF_ENTITIES,
+    CONF_CENTRAL,
+    CONF_COOLING_SUPPORT,
+    CONF_FAN_SUPPORT,
+    CONF_HEATING_SUPPORT,
+    CONF_STANDALONE,
     CONF_WHERE,
     CONF_WORKER_COUNT,
     CONF_FILE_PATH,
     CONF_GENERATE_EVENTS,
+    CONF_ZONE,
     DOMAIN,
     LOGGER,
 )
@@ -39,7 +45,7 @@ from .gateway import MyHOMEGatewayHandler
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS = ["light", "switch", "cover", "climate", "binary_sensor", "sensor", "update"]
-CREATE_ENTITY_PLATFORMS = {"light", "switch", "cover", "binary_sensor", "sensor"}
+CREATE_ENTITY_PLATFORMS = {"light", "switch", "cover", "climate", "binary_sensor", "sensor"}
 DEVICE_MODEL_OPTIONS = {
     "067219",
     "BMSW1005",
@@ -75,13 +81,17 @@ def _next_device_id(devices: dict, requested_id: str) -> str:
 
 def _entity_exists(devices: dict, entity: dict) -> bool:
     requested_where = str(entity.get(CONF_WHERE, ""))
+    requested_zone = str(entity.get(CONF_ZONE, ""))
     requested_interface = str(entity.get(CONF_BUS_INTERFACE, ""))
     for device in devices.values():
         if not isinstance(device, dict):
             continue
         existing_where = str(device.get(CONF_WHERE, ""))
+        existing_zone = str(device.get(CONF_ZONE, ""))
         existing_interface = str(device.get(CONF_BUS_INTERFACE, ""))
-        if existing_where == requested_where and existing_interface == requested_interface:
+        if requested_zone and existing_zone == requested_zone:
+            return True
+        if requested_where and existing_where == requested_where and existing_interface == requested_interface:
             return True
     return False
 
@@ -104,10 +114,16 @@ def _find_raw_gateway_key(config: dict, gateway_mac=None):
 
 
 def _build_entity_config(platform: str, data: dict) -> dict:
-    entity = {
-        "where": str(data["where"]),
-        "name": str(data["name"]),
-    }
+    if platform == "climate":
+        entity = {
+            CONF_ZONE: str(data.get("zone") or data.get("where") or "#0"),
+            "name": str(data["name"]),
+        }
+    else:
+        entity = {
+            "where": str(data["where"]),
+            "name": str(data["name"]),
+        }
 
     optional_string_fields = {
         CONF_BUS_INTERFACE: "interface",
@@ -135,6 +151,12 @@ def _build_entity_config(platform: str, data: dict) -> dict:
             )
     elif platform == "cover":
         entity[CONF_ADVANCED_SHUTTER] = bool(data.get("advanced", False))
+    elif platform == "climate":
+        entity[CONF_HEATING_SUPPORT] = bool(data.get("heat", True))
+        entity[CONF_COOLING_SUPPORT] = bool(data.get("cool", False))
+        entity[CONF_FAN_SUPPORT] = bool(data.get("fan", False))
+        entity[CONF_STANDALONE] = bool(data.get("standalone", False))
+        entity[CONF_CENTRAL] = bool(data.get("central", False))
     elif platform in ("binary_sensor", "sensor"):
         if data.get("class") not in (None, ""):
             entity[CONF_DEVICE_CLASS] = str(data["class"])
@@ -403,7 +425,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             return False
 
         where = call.data.get("where")
-        if not where:
+        zone = call.data.get("zone")
+        if platform == "climate":
+            where = zone or where or "#0"
+        elif not where:
             LOGGER.error("Missing where, could not create entity.")
             return False
 
@@ -413,6 +438,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 "cover": "Rolladen",
                 "light": "Licht",
                 "switch": "Schalter",
+                "climate": "Thermostat",
                 "binary_sensor": "Sensor",
                 "sensor": "Sensor",
             }
@@ -444,10 +470,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         entity_config = _build_entity_config(platform, call.data)
 
         if _entity_exists(gateway_config[platform], entity_config):
+            entity_location = entity_config.get(CONF_WHERE) or entity_config.get(CONF_ZONE)
             LOGGER.info(
-                "MyHome %s entity with where `%s` already exists in %s, skipping.",
+                "MyHome %s entity `%s` already exists in %s, skipping.",
                 platform,
-                entity_config[CONF_WHERE],
+                entity_location,
                 _config_file_path,
             )
             return True
