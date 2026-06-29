@@ -283,7 +283,7 @@ class ZmartMyhomePanel extends HTMLElement {
         }
         .toolbar {
           display: grid;
-          grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 180px)) minmax(150px, 190px) minmax(150px, 190px) auto auto auto auto;
+          grid-template-columns: minmax(180px, 1fr) repeat(4, minmax(120px, 180px)) minmax(150px, 190px) minmax(150px, 190px) auto auto auto auto;
           gap: 8px;
           margin-bottom: 16px;
           align-items: center;
@@ -330,6 +330,14 @@ class ZmartMyhomePanel extends HTMLElement {
         th {
           color: var(--secondary-text-color);
           font-weight: 500;
+        }
+        .group-row td {
+          background: rgba(27, 127, 70, 0.14);
+          color: var(--primary-text-color);
+          font-weight: 700;
+          position: sticky;
+          top: 0;
+          z-index: 1;
         }
         code {
           color: var(--primary-color);
@@ -381,6 +389,14 @@ class ZmartMyhomePanel extends HTMLElement {
               <option value="in">in</option>
               <option value="out">out</option>
               <option value="status">status</option>
+            </select>
+            <select id="group-by">
+              <option value="">Nicht gruppieren</option>
+              <option value="type">Nach Typ</option>
+              <option value="room">Nach Raum</option>
+              <option value="direction">Nach Richtung</option>
+              <option value="gateway">Nach Gateway</option>
+              <option value="matched">Nach Status</option>
             </select>
             <select id="create-type">
               <option value="auto">Automatisch</option>
@@ -460,8 +476,9 @@ class ZmartMyhomePanel extends HTMLElement {
     this.querySelector("#type-filter")?.addEventListener("change", () => this.renderRows());
     this.querySelector("#room-filter")?.addEventListener("change", () => this.renderRows());
     this.querySelector("#direction-filter")?.addEventListener("change", () => this.renderRows());
+    this.querySelector("#group-by")?.addEventListener("change", () => this.renderRows());
     this.querySelector("#clear-filter")?.addEventListener("click", () => {
-      ["#search", "#type-filter", "#room-filter", "#direction-filter"].forEach((selector) => {
+      ["#search", "#type-filter", "#room-filter", "#direction-filter", "#group-by"].forEach((selector) => {
         const control = this.querySelector(selector);
         if (control) control.value = "";
       });
@@ -531,57 +548,100 @@ class ZmartMyhomePanel extends HTMLElement {
     if (!rows || !status || !empty) return;
 
     const filtered = this.filteredEntries();
-    rows.replaceChildren(...filtered.slice().reverse().map((entry) => {
-      const tr = document.createElement("tr");
-      const parsed = entry.parsed || {};
-      [
-        entry.time,
-        entry.gateway,
-        parsed.who,
-        parsed.where,
-        parsed.type,
-        parsed.domain,
-        parsed.model,
-        parsed.room,
-        parsed.description,
-        parsed.action,
-        parsed.value,
-        parsed.decoded,
-      ].forEach((value) => {
-        const td = document.createElement("td");
-        td.textContent = value || "";
-        tr.appendChild(td);
-      });
-
-      const direction = entry.direction || "in";
-      const directionCell = document.createElement("td");
-      const directionBadge = document.createElement("span");
-      directionBadge.className = `direction-badge direction-${direction}`;
-      directionBadge.textContent = direction;
-      directionCell.appendChild(directionBadge);
-      tr.insertBefore(directionCell, tr.children[2]);
-
-      const createCell = document.createElement("td");
-      const createButton = this.createEntityButton(entry);
-      if (createButton) {
-        createCell.appendChild(createButton);
-      }
-      tr.appendChild(createCell);
-
-      const raw = document.createElement("td");
-      const code = document.createElement("code");
-      code.textContent = entry.raw || "";
-      raw.appendChild(code);
-      tr.appendChild(raw);
-
-      return tr;
-    }));
+    rows.replaceChildren(...this.renderableRows(filtered.slice().reverse()));
 
     const total = this._entries?.length || 0;
     empty.hidden = filtered.length > 0;
     status.textContent = total
       ? `${filtered.length} von ${total} Telegrammen angezeigt${this._monitorVersion ? ` · Monitor ${this._monitorVersion}` : ""}`
       : `Warte auf Telegramme${this._monitorVersion ? ` · Monitor ${this._monitorVersion}` : ""}...`;
+  }
+
+  renderableRows(entries) {
+    const groupBy = this.querySelector("#group-by")?.value || "";
+    if (!groupBy) {
+      return entries.map((entry) => this.createTableRow(entry));
+    }
+
+    const nodes = [];
+    const groups = new Map();
+    entries.forEach((entry) => {
+      const group = this.groupLabel(entry, groupBy);
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(entry);
+    });
+
+    groups.forEach((groupEntries, group) => {
+      nodes.push(this.createGroupRow(`${group} (${groupEntries.length})`));
+      groupEntries.forEach((entry) => nodes.push(this.createTableRow(entry)));
+    });
+    return nodes;
+  }
+
+  groupLabel(entry, groupBy) {
+    const parsed = entry.parsed || {};
+    if (groupBy === "type") return parsed.type || "Ohne Typ";
+    if (groupBy === "room") return parsed.room || "Ohne Raum";
+    if (groupBy === "direction") return entry.direction || "in";
+    if (groupBy === "gateway") return entry.gateway || "Ohne Gateway";
+    if (groupBy === "matched") return parsed.matched ? "Bekannt" : "Neu / nicht angelegt";
+    return "";
+  }
+
+  createGroupRow(label) {
+    const tr = document.createElement("tr");
+    tr.className = "group-row";
+    const td = document.createElement("td");
+    td.colSpan = 15;
+    td.textContent = label;
+    tr.appendChild(td);
+    return tr;
+  }
+
+  createTableRow(entry) {
+    const tr = document.createElement("tr");
+    const parsed = entry.parsed || {};
+    [
+      entry.time,
+      entry.gateway,
+      parsed.who,
+      parsed.where,
+      parsed.type,
+      parsed.domain,
+      parsed.model,
+      parsed.room,
+      parsed.description,
+      parsed.action,
+      parsed.value,
+      parsed.decoded,
+    ].forEach((value) => {
+      const td = document.createElement("td");
+      td.textContent = value || "";
+      tr.appendChild(td);
+    });
+
+    const direction = entry.direction || "in";
+    const directionCell = document.createElement("td");
+    const directionBadge = document.createElement("span");
+    directionBadge.className = `direction-badge direction-${direction}`;
+    directionBadge.textContent = direction;
+    directionCell.appendChild(directionBadge);
+    tr.insertBefore(directionCell, tr.children[2]);
+
+    const createCell = document.createElement("td");
+    const createButton = this.createEntityButton(entry);
+    if (createButton) {
+      createCell.appendChild(createButton);
+    }
+    tr.appendChild(createCell);
+
+    const raw = document.createElement("td");
+    const code = document.createElement("code");
+    code.textContent = entry.raw || "";
+    raw.appendChild(code);
+    tr.appendChild(raw);
+
+    return tr;
   }
 
   exportRows() {
@@ -676,6 +736,12 @@ class ZmartMyhomePanel extends HTMLElement {
     return "F417U2";
   }
 
+  climateZoneFromWhere(where) {
+    const zone = String(where || "#0").trim();
+    if (!zone || zone === "#0") return "#0";
+    return zone.replace(/^#0#/, "").replace(/^#+/, "").split("#")[0];
+  }
+
   entityDataFromEntry(entry, selectedType = this.selectedCreateType(), selectedModel = this.selectedCreateModel()) {
     const parsed = entry.parsed || {};
     const options = this.entityOptionsForEntry(entry, selectedType);
@@ -683,12 +749,15 @@ class ZmartMyhomePanel extends HTMLElement {
     const data = {
       platform,
       name: this.defaultEntityName(parsed, platform),
-      where: parsed.where,
     };
+    if (platform === "climate") {
+      data.zone = this.climateZoneFromWhere(parsed.where);
+    } else {
+      data.where = parsed.where;
+    }
     if (entry.gateway) data.gateway = entry.gateway;
     const defaultModel = this.defaultModelForEntry(parsed, platform, options);
     if (selectedModel || parsed.model || defaultModel) data.model = selectedModel || parsed.model || defaultModel;
-    if (platform === "climate") data.zone = parsed.where || "#0";
     if (options.class) data.class = options.class;
     if (options.dimmable !== undefined) data.dimmable = options.dimmable;
     if (options.advanced !== undefined) data.advanced = options.advanced;
@@ -726,9 +795,12 @@ class ZmartMyhomePanel extends HTMLElement {
     const data = {
       platform,
       name,
-      where: parsed.where,
     };
-    if (platform === "climate") data.zone = parsed.where || "#0";
+    if (platform === "climate") {
+      data.zone = this.climateZoneFromWhere(parsed.where);
+    } else {
+      data.where = parsed.where;
+    }
     if (model) data.model = model;
     if (entityClass) data.class = entityClass;
     if (platform === "light") data.dimmable = dimmable;

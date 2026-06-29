@@ -113,10 +113,25 @@ def _find_raw_gateway_key(config: dict, gateway_mac=None):
     return None
 
 
+def _normalize_climate_zone(value, central=False):
+    zone = str(value or "#0").strip()
+    if not zone:
+        return "#0"
+    while zone.startswith("#0#") and not central:
+        zone = zone[3:]
+    if central:
+        return "#0" if zone == "#0" else zone.replace("#0#", "", 1).lstrip("#")
+    if zone == "#0":
+        return zone
+    zone = zone.lstrip("#")
+    return zone.split("#", 1)[0] if "#" in zone else zone
+
+
 def _build_entity_config(platform: str, data: dict) -> dict:
     if platform == "climate":
+        central = bool(data.get("central", False))
         entity = {
-            CONF_ZONE: str(data.get("zone") or data.get("where") or "#0"),
+            CONF_ZONE: _normalize_climate_zone(data.get("zone") or data.get("where"), central),
             "name": str(data["name"]),
         }
     else:

@@ -13,7 +13,7 @@ from .const import (
     DOMAIN,
 )
 
-MONITOR_VERSION = "20260629-13"
+MONITOR_VERSION = "20260629-17"
 
 
 PLATFORM_TYPES = {
@@ -61,6 +61,18 @@ def _normalize_lighting_where(where):
     if not where or not where.isdigit() or len(where) != 2:
         return where
     return f"0{where[0]}0{where[1]}"
+
+
+def _normalize_climate_where(where):
+    if not where:
+        return where
+    value = str(where).strip()
+    if value == "#0":
+        return value
+    if value.startswith("#0#"):
+        value = value[3:]
+    value = value.lstrip("#")
+    return value.split("#", 1)[0] if "#" in value else value
 
 
 def _full_where(device):
@@ -130,6 +142,11 @@ def _message_parts(raw):
 
 def _candidate_where(who, parts, raw):
     raw_text = str(raw or "")
+    if who == "4":
+        if raw_text.startswith("*#") and len(parts) > 1:
+            return _normalize_climate_where(parts[1])
+        if not raw_text.startswith("*#") and len(parts) > 2:
+            return _normalize_climate_where(parts[2])
     where_parts = parts[1:] if raw_text.startswith("*#") else parts[2:]
     for part in where_parts:
         if not part or part in ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9"):
