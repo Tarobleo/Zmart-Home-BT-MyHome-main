@@ -213,6 +213,7 @@ class ZmartMyhomePanel extends HTMLElement {
   }
 
   connectedCallback() {
+    this._rowModels = this._rowModels || new Map();
     this.render();
     this.loadData();
     this._interval = window.setInterval(() => this.loadData(), 1000);
@@ -413,6 +414,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
   async loadData() {
     if (!this._rendered || !this._hass) return;
+    if (this.isEditingRowControls()) return;
 
     const rows = this.querySelector("#rows");
     const status = this.querySelector("#status");
@@ -421,6 +423,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
     try {
       const data = await this._hass.callApi("GET", "myhome/bus_monitor/data");
+      if (this.isEditingRowControls()) return;
       this._entries = data.map((entry) => ({ ...entry, parsed: mergeParsedTelegram(entry) }));
       this._monitorVersion = data.find((entry) => entry.monitor_version)?.monitor_version || "";
       this.updateFilterOptions();
@@ -500,6 +503,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
   renderRows() {
     if (!this._rendered) return;
+    if (this.isEditingRowControls()) return;
 
     const rows = this.querySelector("#rows");
     const status = this.querySelector("#status");
@@ -589,11 +593,30 @@ class ZmartMyhomePanel extends HTMLElement {
 
     const controls = document.createElement("div");
     controls.className = "create-controls";
+    const rowKey = this.rowCreateKey(entry);
 
     const modelSelect = document.createElement("select");
     modelSelect.appendChild(new Option("Hardware optional", ""));
     HARDWARE_MODELS.forEach((model) => modelSelect.appendChild(new Option(model, model)));
-    modelSelect.value = parsed.model || this.selectedCreateModel();
+    modelSelect.value = this._rowModels?.get(rowKey) || parsed.model || this.selectedCreateModel();
+    const pauseRowRender = () => {
+      this._editingRowControls = true;
+      this._pauseRowRenderUntil = Date.now() + 10000;
+    };
+    modelSelect.addEventListener("pointerdown", pauseRowRender);
+    modelSelect.addEventListener("mousedown", pauseRowRender);
+    modelSelect.addEventListener("touchstart", pauseRowRender);
+    modelSelect.addEventListener("focus", pauseRowRender);
+    modelSelect.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        this._editingRowControls = false;
+        this._pauseRowRenderUntil = 0;
+      }, 200);
+    });
+    modelSelect.addEventListener("change", () => {
+      this._rowModels?.set(rowKey, modelSelect.value);
+      this._pauseRowRenderUntil = Date.now() + 1000;
+    });
     controls.appendChild(modelSelect);
 
     const button = document.createElement("button");
@@ -603,6 +626,19 @@ class ZmartMyhomePanel extends HTMLElement {
     controls.appendChild(button);
 
     return controls;
+  }
+
+  isEditingRowControls() {
+    const active = document.activeElement;
+    return this._editingRowControls
+      || Date.now() < (this._pauseRowRenderUntil || 0)
+      || Boolean(active?.closest?.(".create-controls"));
+  }
+
+  rowCreateKey(entry) {
+    const parsed = entry.parsed || {};
+    const platform = this.entityOptionsForEntry(entry).platform;
+    return `${entry.gateway || ""}:${platform}:${parsed.where || ""}`;
   }
 
   creatableEntries() {
