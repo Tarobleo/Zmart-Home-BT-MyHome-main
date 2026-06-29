@@ -20,6 +20,85 @@ send_message:
       description: Valid OpenWebNet message.
       example: "*1*0*0##"
 
+create_entity:
+  name: Create entity
+  description: Add a new MyHome entity to the configured myhome.yaml file. Reload the integration afterwards.
+  fields:
+    gateway:
+      name: Gateway
+      description: Optional gateway MAC address. If empty, the first configured gateway is used.
+      example: 00:03:50:00:00:00
+    platform:
+      name: Platform
+      description: Home Assistant platform to create.
+      required: true
+      example: switch
+      selector:
+        select:
+          options:
+            - light
+            - switch
+            - cover
+            - binary_sensor
+            - sensor
+    device_id:
+      name: Device ID
+      description: Optional YAML key. If empty, it is generated from the name.
+      example: kitchen_outlet
+    name:
+      name: Name
+      description: Device name shown in Home Assistant.
+      required: true
+      example: Kitchen outlet
+    entity_name:
+      name: Entity name
+      description: Optional entity display name.
+      example: Outlet
+    where:
+      name: Where
+      description: OpenWebNet WHERE address, for example A/PL as 0102.
+      required: true
+      example: "0102"
+    interface:
+      name: Bus interface
+      description: Optional local bus interface number.
+      example: "02"
+    model:
+      name: Device model
+      description: Optional installed BTicino/Legrand device model.
+      example: F411/4
+      selector:
+        select:
+          custom_value: true
+          options:
+            - "067219"
+            - BMSW1005
+            - F411/4
+            - F417U2
+            - F418
+            - F422
+            - F430R8
+            - H4652/2
+            - HC/HS/HD4659
+            - LN4652
+            - LN4691
+    class:
+      name: Class
+      description: Optional device class. For switches use switch or outlet.
+      example: outlet
+    dimmable:
+      name: Dimmable
+      description: Enable this for dimmable lights.
+      example: false
+      selector:
+        boolean:
+    advanced:
+      name: Advanced shutter
+      description: Enable this for advanced covers with position support.
+      example: false
+      selector:
+        boolean:
+
 start_sending_instant_power:
   name: Start sending instant power
   description: Get automatic instant power draw updates for a sensor.
