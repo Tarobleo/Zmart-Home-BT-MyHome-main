@@ -53,6 +53,9 @@ DEVICE_MODEL_OPTIONS = {
     "LN4652",
     "LN4691",
 }
+DEFAULT_DEVICE_MODEL_BY_PLATFORM = {
+    "light": {False: "F417U2", True: "F430R8"},
+}
 
 
 def _slugify(value: str) -> str:
@@ -121,7 +124,15 @@ def _build_entity_config(platform: str, data: dict) -> dict:
     if platform == "switch" and data.get("class") not in (None, ""):
         entity[CONF_DEVICE_CLASS] = str(data["class"])
     elif platform == "light":
-        entity[CONF_DIMMABLE] = bool(data.get("dimmable", False))
+        is_dimmable = bool(data.get("dimmable", False))
+        entity[CONF_DIMMABLE] = is_dimmable
+        if CONF_DEVICE_MODEL not in entity:
+            entity[CONF_DEVICE_MODEL] = (
+                DEFAULT_DEVICE_MODEL_BY_PLATFORM.get(platform, {}).get(
+                    is_dimmable,
+                    "F417U2",
+                )
+            )
     elif platform == "cover":
         entity[CONF_ADVANCED_SHUTTER] = bool(data.get("advanced", False))
     elif platform in ("binary_sensor", "sensor"):
@@ -391,11 +402,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             LOGGER.error("Invalid platform `%s`, could not create entity.", platform)
             return False
 
-        name = call.data.get("name")
         where = call.data.get("where")
-        if not name or not where:
-            LOGGER.error("Missing name or where, could not create entity.")
+        if not where:
+            LOGGER.error("Missing where, could not create entity.")
             return False
+
+        name = call.data.get("name")
+        if not name:
+            default_name_prefix = {
+                "cover": "Rolladen",
+                "light": "Licht",
+                "switch": "Schalter",
+                "binary_sensor": "Sensor",
+                "sensor": "Sensor",
+            }
+            name = f"{default_name_prefix.get(platform, platform.title())} {where}"
 
         model = call.data.get("model")
         if model not in (None, "") and str(model) not in DEVICE_MODEL_OPTIONS:

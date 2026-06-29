@@ -47,8 +47,7 @@ create_entity:
       example: kitchen_outlet
     name:
       name: Name
-      description: Device name shown in Home Assistant.
-      required: true
+      description: Optional device name shown in Home Assistant. If empty, a default name is generated from the platform and where value.
       example: Kitchen outlet
     entity_name:
       name: Entity name

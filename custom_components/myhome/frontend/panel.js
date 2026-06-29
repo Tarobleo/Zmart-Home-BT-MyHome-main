@@ -652,17 +652,36 @@ class ZmartMyhomePanel extends HTMLElement {
     return inferAutoEntityOptions(parsed);
   }
 
+  defaultEntityName(parsed, platform) {
+    const fallback = parsed.description || parsed.room || parsed.type || "MyHome";
+    const where = parsed.where || "entity";
+    if (platform === "cover") return `Rolladen ${where}`;
+    if (platform === "light") return `Licht ${where}`;
+    if (platform === "switch") return `Schalter ${where}`;
+    if (platform === "binary_sensor") return `Sensor ${where}`;
+    if (platform === "sensor") return `Sensor ${where}`;
+    return `${fallback} ${where}`.trim();
+  }
+
+  defaultModelForEntry(parsed, platform, options = {}) {
+    if (platform !== "light") return "";
+    const text = [parsed.type, parsed.description, parsed.room, parsed.decoded].join(" ").toLowerCase();
+    if (options.dimmable === true || /dimmer|niveau|level/.test(text)) return "F430R8";
+    return "F417U2";
+  }
+
   entityDataFromEntry(entry, selectedType = this.selectedCreateType(), selectedModel = this.selectedCreateModel()) {
     const parsed = entry.parsed || {};
     const options = this.entityOptionsForEntry(entry, selectedType);
     const platform = options.platform;
     const data = {
       platform,
-      name: parsed.description || parsed.room || `${parsed.type || "MyHome"} ${parsed.where}`,
+      name: this.defaultEntityName(parsed, platform),
       where: parsed.where,
     };
     if (entry.gateway) data.gateway = entry.gateway;
-    if (selectedModel || parsed.model) data.model = selectedModel || parsed.model;
+    const defaultModel = this.defaultModelForEntry(parsed, platform, options);
+    if (selectedModel || parsed.model || defaultModel) data.model = selectedModel || parsed.model || defaultModel;
     if (options.class) data.class = options.class;
     if (options.dimmable !== undefined) data.dimmable = options.dimmable;
     if (options.advanced !== undefined) data.advanced = options.advanced;
@@ -673,13 +692,12 @@ class ZmartMyhomePanel extends HTMLElement {
     const parsed = entry.parsed || {};
     const defaultOptions = this.entityOptionsForEntry(entry);
     const defaultPlatform = defaultOptions.platform || "light";
-    const platform = window.prompt("Platform", defaultPlatform);
-    if (!platform) return;
+    const platform = (window.prompt("Platform", defaultPlatform) || defaultPlatform).trim() || defaultPlatform;
 
-    const name = window.prompt("Name", parsed.description || `${parsed.type || "MyHome"} ${parsed.where}`);
-    if (!name) return;
+    const defaultName = this.defaultEntityName(parsed, platform);
+    const name = (window.prompt("Name", defaultName) || defaultName).trim() || defaultName;
 
-    const model = selectedModel || parsed.model || "";
+    const model = selectedModel || parsed.model || this.defaultModelForEntry(parsed, platform, { dimmable });
     const entityClass = platform === "switch"
       ? window.prompt("Class optional: switch oder outlet", defaultOptions.class || "switch")
       : "";
