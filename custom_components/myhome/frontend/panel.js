@@ -237,7 +237,7 @@ class ZmartMyhomePanel extends HTMLElement {
         }
         .toolbar {
           display: grid;
-          grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 180px)) minmax(150px, 190px) auto auto auto auto;
+          grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 180px)) minmax(150px, 190px) minmax(150px, 190px) auto auto auto auto;
           gap: 8px;
           margin-bottom: 16px;
           align-items: center;
@@ -346,6 +346,20 @@ class ZmartMyhomePanel extends HTMLElement {
               <option value="advanced_cover">Rollladen Position</option>
               <option value="binary_sensor">Binärsensor</option>
               <option value="sensor">Sensor</option>
+            </select>
+            <select id="create-model">
+              <option value="">Hardware optional</option>
+              <option value="067219">067219</option>
+              <option value="BMSW1005">BMSW1005</option>
+              <option value="F411/4">F411/4</option>
+              <option value="F417U2">F417U2</option>
+              <option value="F418">F418</option>
+              <option value="F422">F422</option>
+              <option value="F430R8">F430R8</option>
+              <option value="H4652/2">H4652/2</option>
+              <option value="HC/HS/HD4659">HC/HS/HD4659</option>
+              <option value="LN4652">LN4652</option>
+              <option value="LN4691">LN4691</option>
             </select>
             <button id="clear-filter" type="button">Reset</button>
             <button id="create-found" class="primary" type="button">Gefundene anlegen</button>
@@ -588,6 +602,10 @@ class ZmartMyhomePanel extends HTMLElement {
     return this.querySelector("#create-type")?.value || "auto";
   }
 
+  selectedCreateModel() {
+    return this.querySelector("#create-model")?.value || "";
+  }
+
   entityOptionsForEntry(entry, selectedType = this.selectedCreateType()) {
     const parsed = entry.parsed || {};
     if (selectedType === "light") return { platform: "light", dimmable: false };
@@ -601,7 +619,7 @@ class ZmartMyhomePanel extends HTMLElement {
     return { platform: parsed.suggested_domain || parsed.domain || "light" };
   }
 
-  entityDataFromEntry(entry, selectedType = this.selectedCreateType()) {
+  entityDataFromEntry(entry, selectedType = this.selectedCreateType(), selectedModel = this.selectedCreateModel()) {
     const parsed = entry.parsed || {};
     const options = this.entityOptionsForEntry(entry, selectedType);
     const platform = options.platform;
@@ -611,7 +629,7 @@ class ZmartMyhomePanel extends HTMLElement {
       where: parsed.where,
     };
     if (entry.gateway) data.gateway = entry.gateway;
-    if (parsed.model) data.model = parsed.model;
+    if (selectedModel || parsed.model) data.model = selectedModel || parsed.model;
     if (options.class) data.class = options.class;
     if (options.dimmable !== undefined) data.dimmable = options.dimmable;
     if (options.advanced !== undefined) data.advanced = options.advanced;
@@ -628,7 +646,7 @@ class ZmartMyhomePanel extends HTMLElement {
     const name = window.prompt("Name", parsed.description || `${parsed.type || "MyHome"} ${parsed.where}`);
     if (!name) return;
 
-    const model = window.prompt("Modell optional", parsed.model || "");
+    const model = window.prompt("Modell optional", this.selectedCreateModel() || parsed.model || "");
     const entityClass = platform === "switch"
       ? window.prompt("Class optional: switch oder outlet", defaultOptions.class || "switch")
       : "";
@@ -661,8 +679,10 @@ class ZmartMyhomePanel extends HTMLElement {
     }
 
     const selectedType = this.selectedCreateType();
+    const selectedModel = this.selectedCreateModel();
     const typeLabel = this.querySelector("#create-type")?.selectedOptions?.[0]?.textContent || "Automatisch";
-    if (!window.confirm(`${entries.length} gefundene Identitäten als "${typeLabel}" in myhome.yaml anlegen?`)) {
+    const modelLabel = selectedModel ? ` mit Hardware "${selectedModel}"` : "";
+    if (!window.confirm(`${entries.length} gefundene Identitäten als "${typeLabel}"${modelLabel} in myhome.yaml anlegen?`)) {
       return;
     }
 
@@ -673,7 +693,7 @@ class ZmartMyhomePanel extends HTMLElement {
     try {
       for (const entry of entries) {
         try {
-          await this._hass.callService("myhome", "create_entity", this.entityDataFromEntry(entry, selectedType));
+          await this._hass.callService("myhome", "create_entity", this.entityDataFromEntry(entry, selectedType, selectedModel));
           created += 1;
         } catch (err) {
           failed += 1;

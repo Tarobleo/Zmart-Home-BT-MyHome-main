@@ -13,7 +13,7 @@ from .const import (
     DOMAIN,
 )
 
-MONITOR_VERSION = "20260629-7"
+MONITOR_VERSION = "20260629-8"
 
 
 PLATFORM_TYPES = {
