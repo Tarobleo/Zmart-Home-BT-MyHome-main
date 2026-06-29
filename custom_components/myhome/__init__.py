@@ -5,6 +5,7 @@ import yaml
 
 from OWNd.message import OWNCommand, OWNGatewayCommand
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.update import DOMAIN as UPDATE
 from .panel import async_register_panel
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -28,7 +29,7 @@ from .validate import config_schema, format_mac
 from .gateway import MyHOMEGatewayHandler
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-PLATFORMS = ["light", "switch", "cover", "climate", "binary_sensor", "sensor"]
+PLATFORMS = ["light", "switch", "cover", "climate", "binary_sensor", "sensor", "update"]
 
 
 async def async_setup(hass, config):
@@ -142,9 +143,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         sw_version=hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_ENTITY].firmware,
     )
 
-    await hass.config_entries.async_forward_entry_setups(
-        entry, hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS].keys()
-    )
+    platforms = list(hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS].keys())
+    if UPDATE not in platforms:
+        platforms.append(UPDATE)
+
+    await hass.config_entries.async_forward_entry_setups(entry, platforms)
 
     hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_ENTITY].listening_worker = (
         hass.loop.create_task(
@@ -169,6 +172,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     ]
 
     configured_entities = []
+    configured_entities.append(f"{entry.data[CONF_MAC]}-integration-update")
 
     for _platform in hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS].keys():
         for _device in hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS][
@@ -288,7 +292,11 @@ async def async_unload_entry(hass, entry):
 
     LOGGER.info("Unloading MyHome entry.")
 
-    for platform in hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS].keys():
+    platforms = list(hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS].keys())
+    if UPDATE not in platforms:
+        platforms.append(UPDATE)
+
+    for platform in platforms:
         await hass.config_entries.async_forward_entry_unload(entry, platform)
 
     hass.services.async_remove(DOMAIN, "sync_time")
