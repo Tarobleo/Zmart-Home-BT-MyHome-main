@@ -45,6 +45,13 @@ def _friendly_address(where):
     return f"{int(where[:split_at])}.{int(where[split_at:])}"
 
 
+def _normalize_lighting_where(where):
+    """Normalize short OWN light addresses such as 41 to configured 0401."""
+    if not where or not where.isdigit() or len(where) != 2:
+        return where
+    return f"0{where[0]}0{where[1]}"
+
+
 def _full_where(device):
     where = device.get(CONF_WHERE, "")
     interface = device.get(CONF_BUS_INTERFACE)
@@ -119,8 +126,11 @@ def _find_device(hass, who, parts, raw):
     ]
 
     for part in where_parts:
+        normalized_part = _normalize_lighting_where(part) if who == "1" else part
         for device in candidates:
             if part in (device["where"], device["base_where"]):
+                return device
+            if normalized_part in (device["where"], device["base_where"]):
                 return device
 
     for device in sorted(candidates, key=lambda item: len(item["where"]), reverse=True):
