@@ -13,6 +13,8 @@ from .const import (
     DOMAIN,
 )
 
+MONITOR_VERSION = "20260629-3"
+
 
 PLATFORM_TYPES = {
     "light": "Licht",
@@ -222,6 +224,7 @@ def _parse_telegram(hass, raw):
 
 def _enrich_entry(hass, entry):
     enriched = dict(entry)
+    enriched["monitor_version"] = MONITOR_VERSION
     enriched["parsed"] = _parse_telegram(hass, enriched.get("raw"))
     return enriched
 
@@ -261,3 +264,15 @@ class MyHomeBusMonitorDataView(HomeAssistantView):
         hass = request.app["hass"]
         data = hass.data.get(DOMAIN, {}).get("_bus_monitor", [])
         return web.json_response([_enrich_entry(hass, entry) for entry in data])
+
+
+class MyHomeBusMonitorClearView(HomeAssistantView):
+    url = "/api/myhome/bus_monitor/clear"
+    name = "api:myhome:bus_monitor:clear"
+    requires_auth = True
+
+    async def post(self, request):
+        hass = request.app["hass"]
+        hass.data.setdefault(DOMAIN, {})["_bus_monitor"] = []
+        hass.data.setdefault(DOMAIN, {})["_bus_monitor_seen"] = {}
+        return web.json_response({"cleared": True, "monitor_version": MONITOR_VERSION})

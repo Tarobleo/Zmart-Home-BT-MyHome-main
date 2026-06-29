@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr, entity_registry as er, config_validation as cv
 from homeassistant.const import CONF_MAC
-from .bus_monitor import MyHomeBusMonitorView, MyHomeBusMonitorDataView
+from .bus_monitor import MyHomeBusMonitorView, MyHomeBusMonitorDataView, MyHomeBusMonitorClearView
 from .const import (
     ATTR_GATEWAY,
     ATTR_MESSAGE,
@@ -38,6 +38,7 @@ async def async_setup(hass, config):
     hass.data[DOMAIN]["_bus_monitor"] = []
     hass.http.register_view(MyHomeBusMonitorView())
     hass.http.register_view(MyHomeBusMonitorDataView())
+    hass.http.register_view(MyHomeBusMonitorClearView())
     await hass.http.async_register_static_paths(
         [
             StaticPathConfig(

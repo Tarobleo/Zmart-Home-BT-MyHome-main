@@ -222,7 +222,7 @@ class ZmartMyhomePanel extends HTMLElement {
         }
         .toolbar {
           display: grid;
-          grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 180px)) auto auto auto;
+          grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(120px, 180px)) auto auto auto auto;
           gap: 8px;
           margin-bottom: 16px;
           align-items: center;
@@ -312,6 +312,7 @@ class ZmartMyhomePanel extends HTMLElement {
               <option value="status">status</option>
             </select>
             <button id="clear-filter" type="button">Reset</button>
+            <button id="clear-monitor" type="button">Leeren</button>
             <button id="download-csv" type="button">CSV</button>
             <button id="download-json" type="button">JSON</button>
           </div>
@@ -355,6 +356,7 @@ class ZmartMyhomePanel extends HTMLElement {
     try {
       const data = await this._hass.callApi("GET", "myhome/bus_monitor/data");
       this._entries = data.map((entry) => ({ ...entry, parsed: mergeParsedTelegram(entry) }));
+      this._monitorVersion = data.find((entry) => entry.monitor_version)?.monitor_version || "";
       this.updateFilterOptions();
       this.renderRows();
     } catch (err) {
@@ -377,6 +379,7 @@ class ZmartMyhomePanel extends HTMLElement {
     });
     this.querySelector("#download-csv")?.addEventListener("click", () => this.downloadCsv());
     this.querySelector("#download-json")?.addEventListener("click", () => this.downloadJson());
+    this.querySelector("#clear-monitor")?.addEventListener("click", () => this.clearMonitor());
   }
 
   updateFilterOptions() {
@@ -477,8 +480,8 @@ class ZmartMyhomePanel extends HTMLElement {
     const total = this._entries?.length || 0;
     empty.hidden = filtered.length > 0;
     status.textContent = total
-      ? `${filtered.length} von ${total} Telegrammen angezeigt`
-      : "Warte auf Telegramme...";
+      ? `${filtered.length} von ${total} Telegrammen angezeigt${this._monitorVersion ? ` · Monitor ${this._monitorVersion}` : ""}`
+      : `Warte auf Telegramme${this._monitorVersion ? ` · Monitor ${this._monitorVersion}` : ""}...`;
   }
 
   exportRows() {
@@ -495,6 +498,7 @@ class ZmartMyhomePanel extends HTMLElement {
       model: entry.parsed?.model || "",
       action: entry.parsed?.action || "",
       value: entry.parsed?.value || "",
+      monitor_version: entry.monitor_version || this._monitorVersion || "",
       raw: entry.raw || "",
     }));
   }
@@ -511,7 +515,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
   downloadCsv() {
     const rows = this.exportRows();
-    const headers = ["time", "gateway", "direction", "who", "where", "type", "domain", "model", "room", "description", "action", "value", "raw"];
+    const headers = ["time", "gateway", "direction", "who", "where", "type", "domain", "model", "room", "description", "action", "value", "monitor_version", "raw"];
     const csv = [
       headers.map(escapeCsv).join(","),
       ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(",")),
@@ -525,6 +529,13 @@ class ZmartMyhomePanel extends HTMLElement {
       JSON.stringify(this.exportRows(), null, 2),
       "application/json;charset=utf-8",
     );
+  }
+
+  async clearMonitor() {
+    await this._hass.callApi("POST", "myhome/bus_monitor/clear");
+    this._entries = [];
+    this.renderRows();
+    await this.loadData();
   }
 }
 
