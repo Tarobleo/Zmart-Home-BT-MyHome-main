@@ -20,6 +20,9 @@ from OWNd.message import (
     OWNCommand,
     OWNLightingEvent,
     OWNLightingCommand,
+    MESSAGE_TYPE_MOTION,
+    MESSAGE_TYPE_PIR_SENSITIVITY,
+    MESSAGE_TYPE_MOTION_TIMEOUT,
 )
 
 from .const import (
@@ -256,6 +259,13 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
 
     def handle_event(self, message: OWNLightingEvent):
         """Handle an event message."""
+        if message.message_type in [
+            MESSAGE_TYPE_MOTION,
+            MESSAGE_TYPE_MOTION_TIMEOUT,
+            MESSAGE_TYPE_PIR_SENSITIVITY,
+        ]:
+            return True
+
         LOGGER.info(
             "%s %s",
             self._gateway_handler.log_id,

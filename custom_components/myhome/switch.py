@@ -12,6 +12,9 @@ from homeassistant.const import (
 from OWNd.message import (
     OWNLightingEvent,
     OWNLightingCommand,
+    MESSAGE_TYPE_MOTION,
+    MESSAGE_TYPE_PIR_SENSITIVITY,
+    MESSAGE_TYPE_MOTION_TIMEOUT,
 )
 
 from .const import (
@@ -148,6 +151,13 @@ class MyHOMESwitch(MyHOMEEntity, SwitchEntity):
 
     def handle_event(self, message: OWNLightingEvent):
         """Handle an event message."""
+        if message.message_type in [
+            MESSAGE_TYPE_MOTION,
+            MESSAGE_TYPE_MOTION_TIMEOUT,
+            MESSAGE_TYPE_PIR_SENSITIVITY,
+        ]:
+            return True
+
         if self._attr_device_class == SwitchDeviceClass.SWITCH:
             LOGGER.info(
                 "%s %s",
