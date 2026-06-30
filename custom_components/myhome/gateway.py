@@ -111,6 +111,28 @@ def _socket_telegram(message) -> str:
     return str(message)
 
 
+def _normalize_short_lighting_where(where: str) -> str:
+    """Normalize short lighting addresses like 43 or 415 to 0403 or 0415."""
+    where = str(where or "")
+    if not where.isdigit():
+        return where
+    if len(where) == 2:
+        return f"0{where[0]}0{where[1]}"
+    if len(where) == 3:
+        return f"0{where[0]}{where[1:]}"
+    return where
+
+
+def _lighting_entity_ids(message) -> list[str]:
+    """Return possible entity ids for a lighting message."""
+    entity_ids = [message.entity]
+    normalized_where = _normalize_short_lighting_where(getattr(message, "where", ""))
+    normalized_entity = f"{message.who}-{normalized_where}"
+    if normalized_entity not in entity_ids:
+        entity_ids.append(normalized_entity)
+    return entity_ids
+
+
 def _json_safe(value):
     """Return a JSON-safe representation for monitor diagnostics."""
     if value is None or isinstance(value, (bool, int, float, str)):
@@ -409,7 +431,11 @@ class MyHOMEGatewayHandler:
                         )
                 if not is_event:
                     if isinstance(message, OWNLightingEvent) and message.brightness_preset:
-                        entity = self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][LIGHT][message.entity][CONF_ENTITIES][LIGHT]
+                        entity = None
+                        for entity_id in _lighting_entity_ids(message):
+                            if entity_id in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][LIGHT]:
+                                entity = self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][LIGHT][entity_id][CONF_ENTITIES][LIGHT]
+                                break
                         if isinstance(entity, MyHOMEEntity):
                             if getattr(entity, "_skip_status_request", False):
                                 entity.handle_event(message)
@@ -417,23 +443,27 @@ class MyHOMEGatewayHandler:
                                 await entity.async_update()
                     else:
                         for _platform in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS]:
-                            if _platform != BUTTON and message.entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform]:
-                                for _entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES]:
+                            message_entities = _lighting_entity_ids(message) if isinstance(message, OWNLightingEvent) else [message.entity]
+                            for message_entity in message_entities:
+                                if _platform == BUTTON or message_entity not in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform]:
+                                    continue
+                                for _entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message_entity][CONF_ENTITIES]:
                                     if (
                                         isinstance(
-                                            self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity],
+                                            self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message_entity][CONF_ENTITIES][_entity],
                                             MyHOMEEntity,
                                         )
                                         and not isinstance(
-                                            self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity],
+                                            self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message_entity][CONF_ENTITIES][_entity],
                                             DisableCommandButtonEntity,
                                         )
                                         and not isinstance(
-                                            self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity],
+                                            self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message_entity][CONF_ENTITIES][_entity],
                                             EnableCommandButtonEntity,
                                         )
                                     ):
-                                        self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity].handle_event(message)
+                                        self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message_entity][CONF_ENTITIES][_entity].handle_event(message)
+                                break
 
             else:
                 LOGGER.debug(
