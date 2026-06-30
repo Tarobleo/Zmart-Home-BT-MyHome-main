@@ -409,11 +409,12 @@ class MyHOMEGatewayHandler:
                         )
                 if not is_event:
                     if isinstance(message, OWNLightingEvent) and message.brightness_preset:
-                        if isinstance(
-                            self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][LIGHT][message.entity][CONF_ENTITIES][LIGHT],
-                            MyHOMEEntity,
-                        ):
-                            await self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][LIGHT][message.entity][CONF_ENTITIES][LIGHT].async_update()
+                        entity = self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][LIGHT][message.entity][CONF_ENTITIES][LIGHT]
+                        if isinstance(entity, MyHOMEEntity):
+                            if getattr(entity, "_skip_status_request", False):
+                                entity.handle_event(message)
+                            else:
+                                await entity.async_update()
                     else:
                         for _platform in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS]:
                             if _platform != BUTTON and message.entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform]:
