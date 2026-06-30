@@ -69,6 +69,9 @@ from .button import (
 )
 
 
+EVENT_SESSION_IDLE_TIMEOUT = 300
+RECONNECT_DELAY = 10
+
 
 def _human_readable_log(message) -> str:
     """Return a safe human readable log string for OWNd messages."""
@@ -177,234 +180,263 @@ class MyHOMEGatewayHandler:
 
         LOGGER.debug("%s Creating listening worker.", self.log_id)
 
-        _event_session = OWNEventSession(gateway=self.gateway, logger=LOGGER)
         try:
-            await _event_session.connect()
-            self.is_connected = True
-
             while not self._terminate_listener:
-                message = await _event_session.get_next()
-                LOGGER.debug("%s Message received: `%s`", self.log_id, message)
+                _event_session = OWNEventSession(gateway=self.gateway, logger=LOGGER)
                 try:
-                    _append_bus_monitor_entry(self.hass, self.log_id, message, "in")
-                except Exception:  # noqa: BLE001
-                    pass
-                if self.generate_events:
-                    if isinstance(message, OWNMessage):
-                        _event_content = {"gateway": str(self.gateway.host)}
-                        _event_content.update(message.event_content)
-                        self.hass.bus.async_fire("myhome_message_event", _event_content)
-                    else:
-                        self.hass.bus.async_fire("myhome_message_event", {"gateway": str(self.gateway.host), "message": str(message)})
+                    await _event_session.connect()
+                    self.is_connected = True
+                    LOGGER.info("%s Event listener connected.", self.log_id)
 
-                if not isinstance(message, OWNMessage):
+                    while not self._terminate_listener:
+                        try:
+                            message = await asyncio.wait_for(
+                                _event_session.get_next(),
+                                timeout=EVENT_SESSION_IDLE_TIMEOUT,
+                            )
+                        except asyncio.TimeoutError:
+                            LOGGER.warning(
+                                "%s Event listener idle for %ss, reconnecting.",
+                                self.log_id,
+                                EVENT_SESSION_IDLE_TIMEOUT,
+                            )
+                            break
+
+                        await self._handle_message(message)
+                except asyncio.CancelledError:
+                    LOGGER.debug("%s Listening worker cancelled.", self.log_id)
+                    raise
+                except Exception as err:  # noqa: BLE001
                     LOGGER.warning(
-                        "%s Data received is not a message: `%s`",
+                        "%s Event listener stopped unexpectedly, reconnecting in %ss: %s",
                         self.log_id,
-                        message,
+                        RECONNECT_DELAY,
+                        err,
                     )
-                elif isinstance(message, OWNEnergyEvent):
-                    if SENSOR in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS] and message.entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][SENSOR]:
-                        for _entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][SENSOR][message.entity][CONF_ENTITIES]:
-                            if isinstance(
-                                self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][SENSOR][message.entity][CONF_ENTITIES][_entity],
-                                MyHOMEEntity,
-                            ):
-                                self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][SENSOR][message.entity][CONF_ENTITIES][_entity].handle_event(message)
-                    else:
-                        continue
-                elif (
-                    isinstance(message, OWNLightingEvent)
-                    or isinstance(message, OWNAutomationEvent)
-                    or isinstance(message, OWNDryContactEvent)
-                    or isinstance(message, OWNAuxEvent)
-                    or isinstance(message, OWNHeatingEvent)
-                ):
-                    if not message.is_translation:
-                        is_event = False
-                        if isinstance(message, OWNLightingEvent):
-                            if message.is_general:
-                                is_event = True
-                                event = "on" if message.is_on else "off"
-                                self.hass.bus.async_fire(
-                                    "myhome_general_light_event",
-                                    {"message": str(message), "event": event},
-                                )
-                            elif message.is_area:
-                                is_event = True
-                                event = "on" if message.is_on else "off"
-                                self.hass.bus.async_fire(
-                                    "myhome_area_light_event",
-                                    {
-                                        "message": str(message),
-                                        "area": message.area,
-                                        "event": event,
-                                    },
-                                )
-                            elif message.is_group:
-                                is_event = True
-                                event = "on" if message.is_on else "off"
-                                self.hass.bus.async_fire(
-                                    "myhome_group_light_event",
-                                    {
-                                        "message": str(message),
-                                        "group": message.group,
-                                        "event": event,
-                                    },
-                                )
-                        elif isinstance(message, OWNAutomationEvent):
-                            if message.is_general:
-                                is_event = True
-                                if message.is_opening and not message.is_closing:
-                                    event = "open"
-                                elif message.is_closing and not message.is_opening:
-                                    event = "close"
-                                else:
-                                    event = "stop"
-                                self.hass.bus.async_fire(
-                                    "myhome_general_automation_event",
-                                    {"message": str(message), "event": event},
-                                )
-                            elif message.is_area:
-                                is_event = True
-                                if message.is_opening and not message.is_closing:
-                                    event = "open"
-                                elif message.is_closing and not message.is_opening:
-                                    event = "close"
-                                else:
-                                    event = "stop"
-                                self.hass.bus.async_fire(
-                                    "myhome_area_automation_event",
-                                    {
-                                        "message": str(message),
-                                        "area": message.area,
-                                        "event": event,
-                                    },
-                                )
-                            elif message.is_group:
-                                is_event = True
-                                if message.is_opening and not message.is_closing:
-                                    event = "open"
-                                elif message.is_closing and not message.is_opening:
-                                    event = "close"
-                                else:
-                                    event = "stop"
-                                self.hass.bus.async_fire(
-                                    "myhome_group_automation_event",
-                                    {
-                                        "message": str(message),
-                                        "group": message.group,
-                                        "event": event,
-                                    },
-                                )
-                        if not is_event:
-                            if isinstance(message, OWNLightingEvent) and message.brightness_preset:
-                                if isinstance(
-                                    self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][LIGHT][message.entity][CONF_ENTITIES][LIGHT],
-                                    MyHOMEEntity,
-                                ):
-                                    await self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][LIGHT][message.entity][CONF_ENTITIES][LIGHT].async_update()
-                            else:
-                                for _platform in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS]:
-                                    if _platform != BUTTON and message.entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform]:
-                                        for _entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES]:
-                                            if (
-                                                isinstance(
-                                                    self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity],
-                                                    MyHOMEEntity,
-                                                )
-                                                and not isinstance(
-                                                    self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity],
-                                                    DisableCommandButtonEntity,
-                                                )
-                                                and not isinstance(
-                                                    self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity],
-                                                    EnableCommandButtonEntity,
-                                                )
-                                            ):
-                                                self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity].handle_event(message)
+                finally:
+                    await _event_session.close()
+                    self.is_connected = False
 
-                    else:
-                        LOGGER.debug(
-                            "%s Ignoring translation message `%s`",
-                            self.log_id,
-                            message,
-                        )
-                elif isinstance(message, OWNHeatingCommand) and message.dimension is not None and message.dimension == 14:
-                    where = message.where[1:] if message.where.startswith("#") else message.where
-                    LOGGER.debug(
-                        "%s Received heating command, sending query to zone %s",
-                        self.log_id,
-                        where,
-                    )
-                    await self.send_status_request(OWNHeatingCommand.status(where))
-                elif isinstance(message, OWNCENPlusEvent):
-                    event = None
-                    if message.is_short_pressed:
-                        event = CONF_SHORT_PRESS
-                    elif message.is_held or message.is_still_held:
-                        event = CONF_LONG_PRESS
-                    elif message.is_released:
-                        event = CONF_LONG_RELEASE
-                    else:
-                        event = None
-                    self.hass.bus.async_fire(
-                        "myhome_cenplus_event",
-                        {
-                            "object": int(message.object),
-                            "pushbutton": int(message.push_button),
-                            "event": event,
-                        },
-                    )
-                    LOGGER.info(
-                        "%s %s",
-                        self.log_id,
-                        _human_readable_log(message),
-                    )
-                elif isinstance(message, OWNCENEvent):
-                    event = None
-                    if message.is_pressed:
-                        event = CONF_SHORT_PRESS
-                    elif message.is_released_after_short_press:
-                        event = CONF_SHORT_RELEASE
-                    elif message.is_held:
-                        event = CONF_LONG_PRESS
-                    elif message.is_released_after_long_press:
-                        event = CONF_LONG_RELEASE
-                    else:
-                        event = None
-                    self.hass.bus.async_fire(
-                        "myhome_cen_event",
-                        {
-                            "object": int(message.object),
-                            "pushbutton": int(message.push_button),
-                            "event": event,
-                        },
-                    )
-                    LOGGER.info(
-                        "%s %s",
-                        self.log_id,
-                        _human_readable_log(message),
-                    )
-                elif isinstance(message, OWNGatewayEvent) or isinstance(message, OWNGatewayCommand):
-                    LOGGER.info(
-                        "%s %s",
-                        self.log_id,
-                        _human_readable_log(message),
-                    )
-                else:
-                    LOGGER.info(
-                        "%s Unsupported message type: `%s`",
-                        self.log_id,
-                        message,
-                    )
-        except asyncio.CancelledError:
-            LOGGER.debug("%s Listening worker cancelled.", self.log_id)
-            raise
+                if not self._terminate_listener:
+                    await asyncio.sleep(RECONNECT_DELAY)
         finally:
-            await _event_session.close()
-            self.is_connected = False
             LOGGER.debug("%s Destroying listening worker.", self.log_id)
+
+    async def _handle_message(self, message):
+        LOGGER.debug("%s Message received: `%s`", self.log_id, message)
+        try:
+            _append_bus_monitor_entry(self.hass, self.log_id, message, "in")
+        except Exception:  # noqa: BLE001
+            pass
+        if self.generate_events:
+            if isinstance(message, OWNMessage):
+                _event_content = {"gateway": str(self.gateway.host)}
+                _event_content.update(message.event_content)
+                self.hass.bus.async_fire("myhome_message_event", _event_content)
+            else:
+                self.hass.bus.async_fire("myhome_message_event", {"gateway": str(self.gateway.host), "message": str(message)})
+
+        if not isinstance(message, OWNMessage):
+            LOGGER.warning(
+                "%s Data received is not a message: `%s`",
+                self.log_id,
+                message,
+            )
+        elif isinstance(message, OWNEnergyEvent):
+            if SENSOR in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS] and message.entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][SENSOR]:
+                for _entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][SENSOR][message.entity][CONF_ENTITIES]:
+                    if isinstance(
+                        self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][SENSOR][message.entity][CONF_ENTITIES][_entity],
+                        MyHOMEEntity,
+                    ):
+                        self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][SENSOR][message.entity][CONF_ENTITIES][_entity].handle_event(message)
+            else:
+                return
+        elif (
+            isinstance(message, OWNLightingEvent)
+            or isinstance(message, OWNAutomationEvent)
+            or isinstance(message, OWNDryContactEvent)
+            or isinstance(message, OWNAuxEvent)
+            or isinstance(message, OWNHeatingEvent)
+        ):
+            if not message.is_translation:
+                is_event = False
+                if isinstance(message, OWNLightingEvent):
+                    if message.is_general:
+                        is_event = True
+                        event = "on" if message.is_on else "off"
+                        self.hass.bus.async_fire(
+                            "myhome_general_light_event",
+                            {"message": str(message), "event": event},
+                        )
+                    elif message.is_area:
+                        is_event = True
+                        event = "on" if message.is_on else "off"
+                        self.hass.bus.async_fire(
+                            "myhome_area_light_event",
+                            {
+                                "message": str(message),
+                                "area": message.area,
+                                "event": event,
+                            },
+                        )
+                    elif message.is_group:
+                        is_event = True
+                        event = "on" if message.is_on else "off"
+                        self.hass.bus.async_fire(
+                            "myhome_group_light_event",
+                            {
+                                "message": str(message),
+                                "group": message.group,
+                                "event": event,
+                            },
+                        )
+                elif isinstance(message, OWNAutomationEvent):
+                    if message.is_general:
+                        is_event = True
+                        if message.is_opening and not message.is_closing:
+                            event = "open"
+                        elif message.is_closing and not message.is_opening:
+                            event = "close"
+                        else:
+                            event = "stop"
+                        self.hass.bus.async_fire(
+                            "myhome_general_automation_event",
+                            {"message": str(message), "event": event},
+                        )
+                    elif message.is_area:
+                        is_event = True
+                        if message.is_opening and not message.is_closing:
+                            event = "open"
+                        elif message.is_closing and not message.is_opening:
+                            event = "close"
+                        else:
+                            event = "stop"
+                        self.hass.bus.async_fire(
+                            "myhome_area_automation_event",
+                            {
+                                "message": str(message),
+                                "area": message.area,
+                                "event": event,
+                            },
+                        )
+                    elif message.is_group:
+                        is_event = True
+                        if message.is_opening and not message.is_closing:
+                            event = "open"
+                        elif message.is_closing and not message.is_opening:
+                            event = "close"
+                        else:
+                            event = "stop"
+                        self.hass.bus.async_fire(
+                            "myhome_group_automation_event",
+                            {
+                                "message": str(message),
+                                "group": message.group,
+                                "event": event,
+                            },
+                        )
+                if not is_event:
+                    if isinstance(message, OWNLightingEvent) and message.brightness_preset:
+                        if isinstance(
+                            self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][LIGHT][message.entity][CONF_ENTITIES][LIGHT],
+                            MyHOMEEntity,
+                        ):
+                            await self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][LIGHT][message.entity][CONF_ENTITIES][LIGHT].async_update()
+                    else:
+                        for _platform in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS]:
+                            if _platform != BUTTON and message.entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform]:
+                                for _entity in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES]:
+                                    if (
+                                        isinstance(
+                                            self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity],
+                                            MyHOMEEntity,
+                                        )
+                                        and not isinstance(
+                                            self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity],
+                                            DisableCommandButtonEntity,
+                                        )
+                                        and not isinstance(
+                                            self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity],
+                                            EnableCommandButtonEntity,
+                                        )
+                                    ):
+                                        self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform][message.entity][CONF_ENTITIES][_entity].handle_event(message)
+
+            else:
+                LOGGER.debug(
+                    "%s Ignoring translation message `%s`",
+                    self.log_id,
+                    message,
+                )
+        elif isinstance(message, OWNHeatingCommand) and message.dimension is not None and message.dimension == 14:
+            where = message.where[1:] if message.where.startswith("#") else message.where
+            LOGGER.debug(
+                "%s Received heating command, sending query to zone %s",
+                self.log_id,
+                where,
+            )
+            await self.send_status_request(OWNHeatingCommand.status(where))
+        elif isinstance(message, OWNCENPlusEvent):
+            event = None
+            if message.is_short_pressed:
+                event = CONF_SHORT_PRESS
+            elif message.is_held or message.is_still_held:
+                event = CONF_LONG_PRESS
+            elif message.is_released:
+                event = CONF_LONG_RELEASE
+            else:
+                event = None
+            self.hass.bus.async_fire(
+                "myhome_cenplus_event",
+                {
+                    "object": int(message.object),
+                    "pushbutton": int(message.push_button),
+                    "event": event,
+                },
+            )
+            LOGGER.info(
+                "%s %s",
+                self.log_id,
+                _human_readable_log(message),
+            )
+        elif isinstance(message, OWNCENEvent):
+            event = None
+            if message.is_pressed:
+                event = CONF_SHORT_PRESS
+            elif message.is_released_after_short_press:
+                event = CONF_SHORT_RELEASE
+            elif message.is_held:
+                event = CONF_LONG_PRESS
+            elif message.is_released_after_long_press:
+                event = CONF_LONG_RELEASE
+            else:
+                event = None
+            self.hass.bus.async_fire(
+                "myhome_cen_event",
+                {
+                    "object": int(message.object),
+                    "pushbutton": int(message.push_button),
+                    "event": event,
+                },
+            )
+            LOGGER.info(
+                "%s %s",
+                self.log_id,
+                _human_readable_log(message),
+            )
+        elif isinstance(message, OWNGatewayEvent) or isinstance(message, OWNGatewayCommand):
+            LOGGER.info(
+                "%s %s",
+                self.log_id,
+                _human_readable_log(message),
+            )
+        else:
+            LOGGER.info(
+                "%s Unsupported message type: `%s`",
+                self.log_id,
+                message,
+            )
 
     async def sending_loop(self, worker_id: int):
         self._terminate_sender = False
@@ -415,20 +447,55 @@ class MyHOMEGatewayHandler:
             worker_id,
         )
 
-        _command_session = OWNCommandSession(gateway=self.gateway, logger=LOGGER)
         try:
-            await _command_session.connect()
-
             while not self._terminate_sender:
-                task = await self.send_buffer.get()
-                LOGGER.debug(
-                    "%s Message `%s` was successfully unqueued by worker %s.",
-                    self.log_id,
-                    task["message"],
-                    worker_id,
-                )
-                await _command_session.send(message=task["message"], is_status_request=task["is_status_request"])
-                self.send_buffer.task_done()
+                _command_session = OWNCommandSession(gateway=self.gateway, logger=LOGGER)
+                try:
+                    await _command_session.connect()
+                    LOGGER.info(
+                        "%s Sending worker %s connected.",
+                        self.log_id,
+                        worker_id,
+                    )
+
+                    while not self._terminate_sender:
+                        task = await self.send_buffer.get()
+                        LOGGER.debug(
+                            "%s Message `%s` was successfully unqueued by worker %s.",
+                            self.log_id,
+                            task["message"],
+                            worker_id,
+                        )
+                        try:
+                            await _command_session.send(
+                                message=task["message"],
+                                is_status_request=task["is_status_request"],
+                            )
+                        except Exception:  # noqa: BLE001
+                            await self.send_buffer.put(task)
+                            self.send_buffer.task_done()
+                            raise
+                        self.send_buffer.task_done()
+                except asyncio.CancelledError:
+                    LOGGER.debug(
+                        "%s Sending worker %s cancelled.",
+                        self.log_id,
+                        worker_id,
+                    )
+                    raise
+                except Exception as err:  # noqa: BLE001
+                    LOGGER.warning(
+                        "%s Sending worker %s stopped unexpectedly, reconnecting in %ss: %s",
+                        self.log_id,
+                        worker_id,
+                        RECONNECT_DELAY,
+                        err,
+                    )
+                finally:
+                    await _command_session.close()
+
+                if not self._terminate_sender:
+                    await asyncio.sleep(RECONNECT_DELAY)
         except asyncio.CancelledError:
             LOGGER.debug(
                 "%s Sending worker %s cancelled.",
@@ -437,8 +504,6 @@ class MyHOMEGatewayHandler:
             )
             raise
         finally:
-            await _command_session.close()
-
             LOGGER.debug(
                 "%s Destroying sending worker %s",
                 self.log_id,
