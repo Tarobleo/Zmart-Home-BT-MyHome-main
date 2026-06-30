@@ -198,16 +198,19 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
 
     async def _send_simple_dimmer_level(self, brightness_percent: int):
         level = max(2, min(10, round(brightness_percent / 10)))
-        command = OWNCommand.parse(f"*1*{level}*{self._simple_dimmer_where}##")
+        return await self._send_simple_dimmer_command(level, brightness_percent)
+
+    async def _send_simple_dimmer_command(self, action: int, brightness_percent=None):
+        command = OWNCommand.parse(f"*1*{action}*{self._simple_dimmer_where}##")
         if command is not None and command.is_valid:
             await self._gateway_handler.send(command)
-            self._set_optimistic_state(True, brightness_percent)
+            self._set_optimistic_state(action != 0, brightness_percent)
             return
         LOGGER.error(
-            "%s Could not build simple dimmer command for %s at %s%%.",
+            "%s Could not build simple dimmer command *1*%s*%s##.",
             self._gateway_handler.log_id,
-            self._full_where,
-            brightness_percent,
+            action,
+            self._simple_dimmer_where,
         )
         return None
 
@@ -263,15 +266,11 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
                     )
             else:
                 if self._use_simple_dimmer_commands:
-                    await self._gateway_handler.send(OWNLightingCommand.switch_on(self._simple_dimmer_where))
-                    self._set_optimistic_state(True)
-                    return
+                    return await self._send_simple_dimmer_command(1)
                 return await self._gateway_handler.send(OWNLightingCommand.switch_on(self._full_where, int(kwargs[ATTR_TRANSITION])))
         else:
             if self._use_simple_dimmer_commands:
-                await self._gateway_handler.send(OWNLightingCommand.switch_on(self._simple_dimmer_where))
-                self._set_optimistic_state(True)
-                return
+                return await self._send_simple_dimmer_command(1)
             await self._gateway_handler.send(OWNLightingCommand.switch_on(self._full_where))
             if ColorMode.BRIGHTNESS in self._attr_supported_color_modes:
                 await self.async_update()
@@ -281,9 +280,7 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
 
         if ATTR_TRANSITION in kwargs and self._attr_supported_features & LightEntityFeature.TRANSITION:
             if self._use_simple_dimmer_commands:
-                await self._gateway_handler.send(OWNLightingCommand.switch_off(self._simple_dimmer_where))
-                self._set_optimistic_state(False, 0)
-                return
+                return await self._send_simple_dimmer_command(0, 0)
             return await self._gateway_handler.send(OWNLightingCommand.switch_off(self._full_where, int(kwargs[ATTR_TRANSITION])))
 
         if ATTR_FLASH in kwargs and self._attr_supported_features & LightEntityFeature.FLASH:
@@ -293,9 +290,7 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
                 return await self._gateway_handler.send(OWNLightingCommand.flash(self._full_where, 1.5))
 
         if self._use_simple_dimmer_commands:
-            await self._gateway_handler.send(OWNLightingCommand.switch_off(self._simple_dimmer_where))
-            self._set_optimistic_state(False, 0)
-            return
+            return await self._send_simple_dimmer_command(0, 0)
         await self._gateway_handler.send(OWNLightingCommand.switch_off(self._full_where))
 
     def handle_event(self, message: OWNLightingEvent):
