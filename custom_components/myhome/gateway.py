@@ -111,6 +111,47 @@ def _socket_telegram(message) -> str:
     return str(message)
 
 
+def _json_safe(value):
+    """Return a JSON-safe representation for monitor diagnostics."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    return str(value)
+
+
+def _message_details(message) -> dict:
+    """Collect additional information exposed by OWNd message objects."""
+    details = {
+        "class": type(message).__name__,
+        "repr": repr(message),
+        "text": str(message),
+        "human_readable": _human_readable_log(message),
+    }
+    event_content = getattr(message, "event_content", None)
+    if event_content:
+        details["event_content"] = _json_safe(event_content)
+
+    attributes = {}
+    for attr in dir(message):
+        if attr.startswith("_") or attr in ("event_content", "human_readable_log"):
+            continue
+        try:
+            value = getattr(message, attr)
+        except Exception:  # noqa: BLE001
+            continue
+        if callable(value):
+            continue
+        attributes[attr] = _json_safe(value)
+    if attributes:
+        details["attributes"] = attributes
+    return details
+
+
 def _append_bus_monitor_entry(hass, gateway: str, message, direction: str) -> None:
     """Store a bounded bus monitor entry."""
     domain_data = hass.data.setdefault(DOMAIN, {})
@@ -137,6 +178,7 @@ def _append_bus_monitor_entry(hass, gateway: str, message, direction: str) -> No
             "direction": direction,
             "telegram": telegram,
             "raw": str(message),
+            "details": _message_details(message),
         }
     )
     if len(store) > 500:

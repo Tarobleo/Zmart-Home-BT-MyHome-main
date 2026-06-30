@@ -207,6 +207,15 @@ function escapeCsv(value) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
+function compactJson(value) {
+  if (!value || (typeof value === "object" && !Object.keys(value).length)) return "";
+  try {
+    return JSON.stringify(value);
+  } catch (err) {
+    return String(value);
+  }
+}
+
 function inferAutoEntityOptions(parsed) {
   const text = [
     parsed.type,
@@ -322,7 +331,7 @@ class ZmartMyhomePanel extends HTMLElement {
         table {
           border-collapse: collapse;
           width: 100%;
-          min-width: 1320px;
+          min-width: 1480px;
         }
         th,
         td {
@@ -462,6 +471,7 @@ class ZmartMyhomePanel extends HTMLElement {
                   <th>Anlegen</th>
                   <th>Socket-Telegramm</th>
                   <th>Telegramm</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody id="rows"></tbody>
@@ -553,6 +563,7 @@ class ZmartMyhomePanel extends HTMLElement {
         entry.direction || "in",
         entry.telegram,
         entry.raw,
+        compactJson(entry.details),
         parsed.who,
         parsed.where,
         parsed.type,
@@ -642,7 +653,7 @@ class ZmartMyhomePanel extends HTMLElement {
     const tr = document.createElement("tr");
     tr.className = "group-row";
     const td = document.createElement("td");
-    td.colSpan = 16;
+    td.colSpan = 17;
 
     const button = document.createElement("button");
     button.type = "button";
@@ -713,6 +724,12 @@ class ZmartMyhomePanel extends HTMLElement {
 
     tr.appendChild(raw);
 
+    const details = document.createElement("td");
+    const detailsCode = document.createElement("code");
+    detailsCode.textContent = compactJson(entry.details);
+    details.appendChild(detailsCode);
+    tr.appendChild(details);
+
     return tr;
   }
 
@@ -734,6 +751,7 @@ class ZmartMyhomePanel extends HTMLElement {
       monitor_version: entry.monitor_version || this._monitorVersion || "",
       telegram: entry.telegram || entry.raw || "",
       raw: entry.raw || "",
+      details: compactJson(entry.details),
     }));
   }
 
@@ -942,7 +960,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
   downloadCsv() {
     const rows = this.exportRows();
-    const headers = ["time", "gateway", "direction", "who", "where", "type", "domain", "model", "room", "description", "action", "value", "decoded", "monitor_version", "telegram", "raw"];
+    const headers = ["time", "gateway", "direction", "who", "where", "type", "domain", "model", "room", "description", "action", "value", "decoded", "monitor_version", "telegram", "raw", "details"];
     const csv = [
       headers.map(escapeCsv).join(","),
       ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(",")),

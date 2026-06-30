@@ -13,7 +13,7 @@ from .const import (
     DOMAIN,
 )
 
-MONITOR_VERSION = "20260630-01"
+MONITOR_VERSION = "20260630-02"
 
 
 PLATFORM_TYPES = {
@@ -348,6 +348,7 @@ def _enrich_entry(hass, entry):
     enriched = dict(entry)
     enriched["monitor_version"] = MONITOR_VERSION
     enriched["telegram"] = enriched.get("telegram") or enriched.get("raw") or ""
+    enriched["details"] = enriched.get("details") or {}
     enriched["parsed"] = _parse_telegram(hass, enriched.get("telegram"))
     return enriched
 
