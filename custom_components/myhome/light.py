@@ -202,10 +202,11 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
         """
         if self._skip_status_request:
             LOGGER.debug(
-                "%s Skipping active status request for model %s.",
+                "%s Requesting simple status for model %s.",
                 self._gateway_handler.log_id,
                 self._model,
             )
+            await self._gateway_handler.send_status_request(OWNLightingCommand.status(self._full_where))
             return
         if ColorMode.BRIGHTNESS in self._attr_supported_color_modes:
             await self._gateway_handler.send_status_request(OWNLightingCommand.get_brightness(self._full_where))
