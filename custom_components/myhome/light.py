@@ -46,6 +46,33 @@ from .gateway import MyHOMEGatewayHandler
 DIMMER_MODELS = {"F418", "F430R8"}
 NO_STATUS_REQUEST_DIMMER_MODELS = {"F418"}
 SIMPLE_DIMMER_COMMAND_MODELS = {"F418"}
+SIMPLE_DIMMER_WHERES = {
+    "0103",
+    "0401",
+    "0402",
+    "0403",
+    "0404",
+    "0405",
+    "0406",
+    "0407",
+    "0408",
+    "0409",
+    "0410",
+    "0411",
+    "0412",
+    "0413",
+    "0414",
+    "0415",
+    "0501",
+    "0502",
+    "0503",
+    "0504",
+    "0506",
+    "0507",
+    "0508",
+    "0509",
+    "0510",
+}
 
 
 def _short_point_to_point_where(where: str) -> str:
@@ -171,11 +198,11 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
 
     @property
     def _skip_status_request(self):
-        return self._model_name in NO_STATUS_REQUEST_DIMMER_MODELS
+        return self._model_name in NO_STATUS_REQUEST_DIMMER_MODELS or self._where in SIMPLE_DIMMER_WHERES
 
     @property
     def _use_simple_dimmer_commands(self):
-        return self._model_name in SIMPLE_DIMMER_COMMAND_MODELS
+        return self._model_name in SIMPLE_DIMMER_COMMAND_MODELS or self._where in SIMPLE_DIMMER_WHERES
 
     @property
     def _simple_dimmer_where(self):
