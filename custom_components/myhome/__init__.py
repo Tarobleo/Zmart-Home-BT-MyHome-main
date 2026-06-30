@@ -26,7 +26,6 @@ from .const import (
     CONF_ENTITY_NAME,
     CONF_PLATFORMS,
     CONF_ENTITY,
-    CONF_ENTITIES,
     CONF_CENTRAL,
     CONF_COOLING_SUPPORT,
     CONF_FAN_SUPPORT,
@@ -62,6 +61,39 @@ DEVICE_MODEL_OPTIONS = {
 DEFAULT_DEVICE_MODEL_BY_PLATFORM = {
     "light": {False: "F417U2", True: "F418"},
 }
+
+
+def _configured_entity_unique_ids(gateway_mac: str, platforms: dict) -> set[str]:
+    """Return entity unique IDs expected from the validated config."""
+    unique_ids = {f"{gateway_mac}-integration-update"}
+
+    for platform, devices in platforms.items():
+        for device_id, device_config in devices.items():
+            if platform == "button":
+                unique_ids.add(f"{gateway_mac}-{device_id}-disable")
+                unique_ids.add(f"{gateway_mac}-{device_id}-enable")
+            elif platform == "binary_sensor":
+                device_class = device_config.get(CONF_DEVICE_CLASS)
+                if device_class:
+                    unique_ids.add(f"{gateway_mac}-{device_id}-{device_class}")
+                else:
+                    unique_ids.add(f"{gateway_mac}-{device_id}")
+            elif platform == "sensor":
+                device_class = device_config.get(CONF_DEVICE_CLASS)
+                if device_class in ("power", "energy"):
+                    unique_ids.add(f"{gateway_mac}-{device_id}-daily-energy")
+                    unique_ids.add(f"{gateway_mac}-{device_id}-monthly-energy")
+                    unique_ids.add(f"{gateway_mac}-{device_id}-total-energy")
+                    if device_class == "power":
+                        unique_ids.add(f"{gateway_mac}-{device_id}-power")
+                elif device_class:
+                    unique_ids.add(f"{gateway_mac}-{device_id}-{device_class}")
+                else:
+                    unique_ids.add(f"{gateway_mac}-{device_id}")
+            else:
+                unique_ids.add(f"{gateway_mac}-{device_id}")
+
+    return unique_ids
 
 
 def _slugify(value: str) -> str:
@@ -320,24 +352,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         if entry.entry_id in device_entry.config_entries
     ]
 
-    configured_entities = []
-    configured_entities.append(f"{entry.data[CONF_MAC]}-integration-update")
-
-    for _platform in hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS].keys():
-        for _device in hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS][
-            _platform
-        ].keys():
-            for _entity_name in hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS][
-                _platform
-            ][_device][CONF_ENTITIES]:
-                if _entity_name != _platform:
-                    configured_entities.append(
-                        f"{entry.data[CONF_MAC]}-{_device}-{_entity_name}"
-                    )  # extrapolating _attr_unique_id out of the entity's place in the config data structure
-                else:
-                    configured_entities.append(
-                        f"{entry.data[CONF_MAC]}-{_device}"
-                    )  # extrapolating _attr_unique_id out of the entity's place in the config data structure
+    configured_entities = _configured_entity_unique_ids(
+        entry.data[CONF_MAC],
+        hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS],
+    )
 
     for entity_entry in entity_entries:
         if entity_entry.unique_id in configured_entities:
