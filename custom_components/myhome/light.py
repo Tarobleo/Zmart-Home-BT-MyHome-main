@@ -46,33 +46,6 @@ from .gateway import MyHOMEGatewayHandler
 DIMMER_MODELS = {"F418", "F430R8"}
 NO_STATUS_REQUEST_DIMMER_MODELS = {"F418"}
 SIMPLE_DIMMER_COMMAND_MODELS = {"F418"}
-SIMPLE_DIMMER_WHERES = {
-    "0103",
-    "0401",
-    "0402",
-    "0403",
-    "0404",
-    "0405",
-    "0406",
-    "0407",
-    "0408",
-    "0409",
-    "0410",
-    "0411",
-    "0412",
-    "0413",
-    "0414",
-    "0415",
-    "0501",
-    "0502",
-    "0503",
-    "0504",
-    "0506",
-    "0507",
-    "0508",
-    "0509",
-    "0510",
-}
 
 
 def _short_point_to_point_where(where: str) -> str:
@@ -164,7 +137,7 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
 
         self._attr_supported_features = 0
         self._attr_supported_color_modes: set[ColorMode] = set()
-        dimmable = dimmable or self._model_name in DIMMER_MODELS
+        dimmable = dimmable or self._model_matches(DIMMER_MODELS)
 
         if dimmable:
             self._attr_supported_color_modes.add(ColorMode.BRIGHTNESS)
@@ -196,13 +169,17 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
     def _model_name(self):
         return str(self._model or "").upper()
 
+    def _model_matches(self, models: set[str]):
+        model_name = self._model_name
+        return any(model in model_name for model in models)
+
     @property
     def _skip_status_request(self):
-        return self._model_name in NO_STATUS_REQUEST_DIMMER_MODELS or self._where in SIMPLE_DIMMER_WHERES
+        return self._model_matches(NO_STATUS_REQUEST_DIMMER_MODELS)
 
     @property
     def _use_simple_dimmer_commands(self):
-        return self._model_name in SIMPLE_DIMMER_COMMAND_MODELS or self._where in SIMPLE_DIMMER_WHERES
+        return self._model_matches(SIMPLE_DIMMER_COMMAND_MODELS)
 
     @property
     def _simple_dimmer_where(self):
