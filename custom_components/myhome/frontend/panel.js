@@ -194,7 +194,7 @@ function parseTelegram(raw) {
 
 function mergeParsedTelegram(entry) {
   const backendParsed = entry.parsed || {};
-  const frontendParsed = parseTelegram(entry.raw);
+  const frontendParsed = parseTelegram(entry.telegram || entry.raw);
   return {
     ...frontendParsed,
     ...Object.fromEntries(
@@ -322,7 +322,7 @@ class ZmartMyhomePanel extends HTMLElement {
         table {
           border-collapse: collapse;
           width: 100%;
-          min-width: 1180px;
+          min-width: 1320px;
         }
         th,
         td {
@@ -460,6 +460,7 @@ class ZmartMyhomePanel extends HTMLElement {
                   <th>Wert</th>
                   <th>Dekodiert</th>
                   <th>Anlegen</th>
+                  <th>Socket-Telegramm</th>
                   <th>Telegramm</th>
                 </tr>
               </thead>
@@ -483,7 +484,11 @@ class ZmartMyhomePanel extends HTMLElement {
 
     try {
       const data = await this._hass.callApi("GET", "myhome/bus_monitor/data");
-      this._entries = data.map((entry) => ({ ...entry, parsed: mergeParsedTelegram(entry) }));
+      this._entries = data.map((entry) => ({
+        ...entry,
+        telegram: entry.telegram || entry.raw || "",
+        parsed: mergeParsedTelegram(entry),
+      }));
       this._monitorVersion = data.find((entry) => entry.monitor_version)?.monitor_version || "";
       this.updateFilterOptions();
       this.renderRows();
@@ -546,6 +551,7 @@ class ZmartMyhomePanel extends HTMLElement {
         entry.time,
         entry.gateway,
         entry.direction || "in",
+        entry.telegram,
         entry.raw,
         parsed.who,
         parsed.where,
@@ -636,7 +642,7 @@ class ZmartMyhomePanel extends HTMLElement {
     const tr = document.createElement("tr");
     tr.className = "group-row";
     const td = document.createElement("td");
-    td.colSpan = 15;
+    td.colSpan = 16;
 
     const button = document.createElement("button");
     button.type = "button";
@@ -698,6 +704,13 @@ class ZmartMyhomePanel extends HTMLElement {
     const code = document.createElement("code");
     code.textContent = entry.raw || "";
     raw.appendChild(code);
+
+    const telegram = document.createElement("td");
+    const telegramCode = document.createElement("code");
+    telegramCode.textContent = entry.telegram || entry.raw || "";
+    telegram.appendChild(telegramCode);
+    tr.appendChild(telegram);
+
     tr.appendChild(raw);
 
     return tr;
@@ -719,6 +732,7 @@ class ZmartMyhomePanel extends HTMLElement {
       value: entry.parsed?.value || "",
       decoded: entry.parsed?.decoded || "",
       monitor_version: entry.monitor_version || this._monitorVersion || "",
+      telegram: entry.telegram || entry.raw || "",
       raw: entry.raw || "",
     }));
   }
@@ -928,7 +942,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
   downloadCsv() {
     const rows = this.exportRows();
-    const headers = ["time", "gateway", "direction", "who", "where", "type", "domain", "model", "room", "description", "action", "value", "decoded", "monitor_version", "raw"];
+    const headers = ["time", "gateway", "direction", "who", "where", "type", "domain", "model", "room", "description", "action", "value", "decoded", "monitor_version", "telegram", "raw"];
     const csv = [
       headers.map(escapeCsv).join(","),
       ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(",")),

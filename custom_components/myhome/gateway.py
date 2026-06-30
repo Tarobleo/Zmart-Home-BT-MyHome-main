@@ -84,11 +84,39 @@ def _human_readable_log(message) -> str:
     return str(log_text if log_text is not None else message)
 
 
+def _socket_telegram(message) -> str:
+    """Return the most complete socket telegram available for a message."""
+    for attr in (
+        "telegram",
+        "raw_telegram",
+        "raw_message",
+        "raw",
+        "message",
+        "frame",
+        "data",
+    ):
+        value = getattr(message, attr, None)
+        if value is None:
+            continue
+        if callable(value):
+            try:
+                value = value()
+            except TypeError:
+                continue
+        if isinstance(value, bytes):
+            value = value.decode(errors="replace")
+        value = str(value)
+        if value:
+            return value
+    return str(message)
+
+
 def _append_bus_monitor_entry(hass, gateway: str, message, direction: str) -> None:
     """Store a bounded bus monitor entry."""
     domain_data = hass.data.setdefault(DOMAIN, {})
+    telegram = _socket_telegram(message)
     if direction == "in":
-        dedupe_key = (gateway, direction, str(message))
+        dedupe_key = (gateway, direction, telegram)
         now = datetime.now().timestamp()
         seen = domain_data.setdefault("_bus_monitor_seen", {})
         if now - seen.get(dedupe_key, 0) < 10:
@@ -107,6 +135,7 @@ def _append_bus_monitor_entry(hass, gateway: str, message, direction: str) -> No
             "time": datetime.now().strftime("%H:%M:%S"),
             "gateway": gateway,
             "direction": direction,
+            "telegram": telegram,
             "raw": str(message),
         }
     )
