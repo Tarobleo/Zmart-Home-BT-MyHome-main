@@ -133,6 +133,28 @@ def _lighting_entity_ids(message) -> list[str]:
     return entity_ids
 
 
+def _normalize_short_point_to_point_where(where: str) -> str:
+    """Normalize short automation addresses like 21 or 313 to 0201 or 0313."""
+    where = str(where or "")
+    if not where.isdigit():
+        return where
+    if len(where) == 2:
+        return f"0{where[0]}0{where[1]}"
+    if len(where) == 3:
+        return f"0{where[0]}{where[1:]}"
+    return where
+
+
+def _automation_entity_ids(message) -> list[str]:
+    """Return possible entity ids for an automation message."""
+    entity_ids = [message.entity]
+    normalized_where = _normalize_short_point_to_point_where(getattr(message, "where", ""))
+    normalized_entity = f"{message.who}-{normalized_where}"
+    if normalized_entity not in entity_ids:
+        entity_ids.append(normalized_entity)
+    return entity_ids
+
+
 def _json_safe(value):
     """Return a JSON-safe representation for monitor diagnostics."""
     if value is None or isinstance(value, (bool, int, float, str)):
@@ -443,7 +465,12 @@ class MyHOMEGatewayHandler:
                                 await entity.async_update()
                     else:
                         for _platform in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS]:
-                            message_entities = _lighting_entity_ids(message) if isinstance(message, OWNLightingEvent) else [message.entity]
+                            if isinstance(message, OWNLightingEvent):
+                                message_entities = _lighting_entity_ids(message)
+                            elif isinstance(message, OWNAutomationEvent):
+                                message_entities = _automation_entity_ids(message)
+                            else:
+                                message_entities = [message.entity]
                             for message_entity in message_entities:
                                 if _platform == BUTTON or message_entity not in self.hass.data[DOMAIN][self.mac][CONF_PLATFORMS][_platform]:
                                     continue

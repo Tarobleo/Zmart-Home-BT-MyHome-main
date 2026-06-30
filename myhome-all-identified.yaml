@@ -1,0 +1,252 @@
+f454_gateway:
+  mac: "00:00:00:00:00:00"
+
+  cover:
+    f411_0201:
+      where: "0201"
+      name: "Salle de jeux - volet salle de jeux"
+      model: "F411/4"
+    f411_0202:
+      where: "0202"
+      name: "Dressing - volet dressing"
+      model: "F411/4"
+    f411_0203:
+      where: "0203"
+      name: "Chambre enfants avant - volet chambre enfants avant 0203"
+      model: "F411/4"
+    f411_0204:
+      where: "0204"
+      name: "Chambre enfants avant - volet chambre enfants avant 0204"
+      model: "F411/4"
+    f411_0205:
+      where: "0205"
+      name: "Salle de douche - volet salle de douche"
+      model: "F411/4"
+    f411_0206:
+      where: "0206"
+      name: "Salle de bain - volet salle de bain"
+      model: "F411/4"
+    f411_0207:
+      where: "0207"
+      name: "Chambre parents - volet chambre parents"
+      model: "F411/4"
+    f411_0208:
+      where: "0208"
+      name: "Hall chambre - volet hall chambre"
+      model: "F411/4"
+    f411_0209:
+      where: "0209"
+      name: "Salon - volet salon droit/gauche 0209"
+      model: "F411/4"
+    f411_0210:
+      where: "0210"
+      name: "Salle a manger - volet salle a manger 0210"
+      model: "F411/4"
+    f411_0211:
+      where: "0211"
+      name: "Salle a manger - volet salle a manger 0211"
+      model: "F411/4"
+    f411_0212:
+      where: "0212"
+      name: "Salon - volet salon droit/gauche 0212"
+      model: "F411/4"
+    f411_0213:
+      where: "0213"
+      name: "Salon - volet salon centre"
+      model: "F411/4"
+    f411_0214:
+      where: "0214"
+      name: "WC - volet WC"
+      model: "F411/4"
+    f411_0215:
+      where: "0215"
+      name: "Hall 1er etage - volet hall 1er"
+      model: "F411/4"
+    f411_0301:
+      where: "0301"
+      name: "Cuisine - volet cuisine 0301"
+      model: "F411/4"
+    f411_0302:
+      where: "0302"
+      name: "Cuisine - volet cuisine 0302"
+      model: "F411/4"
+    f411_0303:
+      where: "0303"
+      name: "Cuisine - volet cuisine 0303"
+      model: "F411/4"
+    f411_0304:
+      where: "0304"
+      name: "Cuisine - volet cuisine 0304"
+      model: "F411/4"
+    f411_0305:
+      where: "0305"
+      name: "Cuisine - volet cuisine 0305"
+      model: "F411/4"
+    f411_0310:
+      where: "0310"
+      name: "Chambre enfants arriere - volet chambre enfants arriere 0310"
+      model: "F411/4"
+    f411_0311:
+      where: "0311"
+      name: "Chambre enfants arriere - volet chambre enfants arriere 0311"
+      model: "F411/4"
+    f411_0312:
+      where: "0312"
+      name: "Bureau - volet bureau 0312"
+      model: "F411/4"
+    f411_0313:
+      where: "0313"
+      name: "Bureau - volet bureau 0313"
+      model: "F411/4"
+
+  light:
+    f417u2_0110:
+      where: "0110"
+      name: "Hall d'entree - spots hall d'entree"
+      model: "F417U2"
+      dimmable: false
+    f417u2_0111:
+      where: "0111"
+      name: "Cuisine - spots devant meubles cuisine"
+      model: "F417U2"
+      dimmable: false
+    f417u2_0112:
+      where: "0112"
+      name: "Cuisine - spots ilot cuisine"
+      model: "F417U2"
+      dimmable: false
+    f417u2_0113:
+      where: "0113"
+      name: "Salon - groupe 5 spots salon"
+      model: "F417U2"
+      dimmable: false
+    f417u2_0114:
+      where: "0114"
+      name: "Hall 1er etage - spots hall 1er etage"
+      model: "F417U2"
+      dimmable: false
+    f417u2_0115:
+      where: "0115"
+      name: "Hall chambres - spots hall chambres"
+      model: "F417U2"
+      dimmable: false
+    f418_0401:
+      where: "0401"
+      name: "Salle de jeux - spots salle de jeux baby-foot"
+      model: "F418"
+      dimmable: true
+    f418_0402:
+      where: "0402"
+      name: "Bureau - spots bureau"
+      model: "F418"
+      dimmable: true
+    f418_0403:
+      where: "0403"
+      name: "Cheminee - cheminee"
+      model: "F418"
+      dimmable: true
+    f418_0404:
+      where: "0404"
+      name: "Salle de bain - 2 spots baignoire"
+      model: "F418"
+      dimmable: true
+    f418_0405:
+      where: "0405"
+      name: "Salle de bain - spots douche salle de bain"
+      model: "F418"
+      dimmable: true
+    f418_0406:
+      where: "0406"
+      name: "Cuisine - point lumineux table cuisine"
+      model: "F418"
+      dimmable: true
+    f418_0407:
+      where: "0407"
+      name: "Chambre enfant avant - spots chambre enfant avant"
+      model: "F418"
+      dimmable: true
+    f418_0408:
+      where: "0408"
+      name: "WC - spots WC"
+      model: "F418"
+      dimmable: true
+    f418_0409:
+      where: "0409"
+      name: "Salle a manger - groupe 4 spots salle a manger"
+      model: "F418"
+      dimmable: true
+    f418_0410:
+      where: "0410"
+      name: "Salon - 2 spots coin TV"
+      model: "F418"
+      dimmable: true
+    f418_0411:
+      where: "0411"
+      name: "Salle a manger - point lumineux table salle a manger"
+      model: "F418"
+      dimmable: true
+    f418_0412:
+      where: "0412"
+      name: "Chambre parents - spots chambre parents"
+      model: "F418"
+      dimmable: true
+    f418_0413:
+      where: "0413"
+      name: "Cuisine - groupe 2 spots cuisine"
+      model: "F418"
+      dimmable: true
+    f418_0414:
+      where: "0414"
+      name: "Salle de douche - groupe 3 spots salle de douche"
+      model: "F418"
+      dimmable: true
+    f418_0415:
+      where: "0415"
+      name: "Salle de douche - spots douche salle de douche"
+      model: "F418"
+      dimmable: true
+    f418_0501:
+      where: "0501"
+      name: "Salon - prise commandee salon"
+      model: "F418"
+      dimmable: true
+    f418_0502:
+      where: "0502"
+      name: "Salle de jeux - spots salle de jeux centre"
+      model: "F418"
+      dimmable: true
+    f418_0503:
+      where: "0503"
+      name: "Dressing - spots dressing"
+      model: "F418"
+      dimmable: true
+    f418_0504:
+      where: "0504"
+      name: "Salle de jeux - spot salle de jeux TV"
+      model: "F418"
+      dimmable: true
+    f418_0506:
+      where: "0506"
+      name: "Salle de bain - spots salle de bain"
+      model: "F418"
+      dimmable: true
+    f418_0507:
+      where: "0507"
+      name: "Salle a manger - prise commandee salle a manger"
+      model: "F418"
+      dimmable: true
+    f418_0508:
+      where: "0508"
+      name: "Chambre enfants arriere - spots chambre enfants arriere"
+      model: "F418"
+      dimmable: true
+    f418_0509:
+      where: "0509"
+      name: "Escalier - brick escalier haut"
+      model: "F418"
+      dimmable: true
+    f418_0510:
+      where: "0510"
+      name: "Bureau - spots bureau"
+      model: "F418"
+      dimmable: true
