@@ -202,6 +202,14 @@ def _message_parts(raw):
     return [part for part in message.split("*") if part]
 
 
+def _ignored_telegram(who, where, raw):
+    if str(who or "").isdigit() and int(who) > 13:
+        return True
+    raw_text = str(raw or "")
+    where_text = str(where or "")
+    return "#0" in raw_text or "#0" in where_text
+
+
 def _candidate_where(who, parts, raw):
     raw_text = str(raw or "")
     if who == "4":
@@ -381,6 +389,24 @@ def _parse_telegram(hass, raw):
     parts = _message_parts(raw_text)
     who = parts[0] if parts else ""
     where = _candidate_where(who, parts, raw_text)
+    if _ignored_telegram(who, where, raw_text):
+        return {
+            "who": who,
+            "where": "",
+            "type": "",
+            "domain": "",
+            "suggested_domain": "",
+            "model": "",
+            "room": "",
+            "description": "",
+            "address": "",
+            "action": "",
+            "value": "",
+            "decoded": "",
+            "matched": False,
+            "ignored": True,
+        }
+
     device = _find_device(hass, who, parts, raw_text)
     action, value = _telegram_action(who, parts, is_status)
     decoded = _decode_telegram(who, parts, raw_text, action, value, where)

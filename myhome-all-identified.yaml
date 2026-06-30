@@ -104,32 +104,32 @@ f454_gateway:
       where: "0110"
       name: "Hall d'entree - spots hall d'entree"
       model: "F417U2"
-      dimmable: false
+      dimmable: true
     f417u2_0111:
       where: "0111"
       name: "Cuisine - spots devant meubles cuisine"
       model: "F417U2"
-      dimmable: false
+      dimmable: true
     f417u2_0112:
       where: "0112"
       name: "Cuisine - spots ilot cuisine"
       model: "F417U2"
-      dimmable: false
+      dimmable: true
     f417u2_0113:
       where: "0113"
       name: "Salon - groupe 5 spots salon"
       model: "F417U2"
-      dimmable: false
+      dimmable: true
     f417u2_0114:
       where: "0114"
       name: "Hall 1er etage - spots hall 1er etage"
       model: "F417U2"
-      dimmable: false
+      dimmable: true
     f417u2_0115:
       where: "0115"
       name: "Hall chambres - spots hall chambres"
       model: "F417U2"
-      dimmable: false
+      dimmable: true
     f418_0401:
       where: "0401"
       name: "Salle de jeux - spots salle de jeux baby-foot"

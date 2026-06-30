@@ -111,6 +111,32 @@ def _socket_telegram(message) -> str:
     return str(message)
 
 
+def _message_parts(raw):
+    message = str(raw or "").strip().strip("`")
+    if message.endswith("##"):
+        message = message[:-2]
+    if message.startswith("*#"):
+        message = message[2:]
+    elif message.startswith("*"):
+        message = message[1:]
+    return [part for part in message.split("*") if part]
+
+
+def _ignored_telegram(message) -> bool:
+    """Return True for telegrams that are outside this installation's bus scope."""
+    raw = _socket_telegram(message)
+    parts = _message_parts(raw)
+    who = str(getattr(message, "who", "") or (parts[0] if parts else ""))
+    where = str(getattr(message, "where", "") or "")
+    entity = str(getattr(message, "entity", "") or "")
+
+    if who.isdigit() and int(who) > 13:
+        return True
+    if "#0" in raw or "#0" in where or "#0" in entity:
+        return True
+    return False
+
+
 def _normalize_short_lighting_where(where: str) -> str:
     """Normalize short lighting addresses like 43 or 415 to 0403 or 0415."""
     where = str(where or "")
@@ -198,6 +224,9 @@ def _message_details(message) -> dict:
 
 def _append_bus_monitor_entry(hass, gateway: str, message, direction: str) -> None:
     """Store a bounded bus monitor entry."""
+    if isinstance(message, OWNMessage) and _ignored_telegram(message):
+        return
+
     domain_data = hass.data.setdefault(DOMAIN, {})
     telegram = _socket_telegram(message)
     if direction == "in":
@@ -339,6 +368,10 @@ class MyHOMEGatewayHandler:
 
     async def _handle_message(self, message):
         LOGGER.debug("%s Message received: `%s`", self.log_id, message)
+        if isinstance(message, OWNMessage) and _ignored_telegram(message):
+            LOGGER.debug("%s Ignoring out-of-scope telegram `%s`.", self.log_id, message)
+            return
+
         try:
             _append_bus_monitor_entry(self.hass, self.log_id, message, "in")
         except Exception:  # noqa: BLE001
