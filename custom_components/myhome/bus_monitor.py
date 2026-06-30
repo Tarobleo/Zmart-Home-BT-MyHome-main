@@ -42,6 +42,63 @@ WHO_PLATFORMS = {
     "25": "binary_sensor",
 }
 
+ADDRESS_MODELS = {
+    "0201": "F411/4",
+    "0202": "F411/4",
+    "0203": "F411/4",
+    "0204": "F411/4",
+    "0205": "F411/4",
+    "0206": "F411/4",
+    "0207": "F411/4",
+    "0208": "F411/4",
+    "0209": "F411/4",
+    "0210": "F411/4",
+    "0211": "F411/4",
+    "0212": "F411/4",
+    "0213": "F411/4",
+    "0214": "F411/4",
+    "0215": "F411/4",
+    "0301": "F411/4",
+    "0302": "F411/4",
+    "0303": "F411/4",
+    "0304": "F411/4",
+    "0305": "F411/4",
+    "0310": "F411/4",
+    "0311": "F411/4",
+    "0312": "F411/4",
+    "0313": "F411/4",
+    "0110": "F417U2",
+    "0111": "F417U2",
+    "0112": "F417U2",
+    "0113": "F417U2",
+    "0114": "F417U2",
+    "0115": "F417U2",
+    "0401": "F418",
+    "0402": "F418",
+    "0403": "F418",
+    "0404": "F418",
+    "0405": "F418",
+    "0406": "F418",
+    "0407": "F418",
+    "0408": "F418",
+    "0409": "F418",
+    "0410": "F418",
+    "0411": "F418",
+    "0412": "F418",
+    "0413": "F418",
+    "0414": "F418",
+    "0415": "F418",
+    "0501": "F418",
+    "0502": "F418",
+    "0503": "F418",
+    "0504": "F418",
+    "0506": "F418",
+    "0507": "F418",
+    "0508": "F418",
+    "0509": "F418",
+    "0510": "F418",
+}
+
 
 def _as_text(value):
     if value is None:
@@ -54,6 +111,10 @@ def _friendly_address(where):
         return where or ""
     split_at = len(where) // 2
     return f"{int(where[:split_at])}.{int(where[split_at:])}"
+
+
+def _model_for_where(where):
+    return ADDRESS_MODELS.get(str(where or ""))
 
 
 def _normalize_lighting_where(where):
@@ -116,7 +177,7 @@ def _configured_devices(hass):
                         "domain": platform,
                         "type": _device_type(platform, device),
                         "device_class": _as_text(device.get(CONF_DEVICE_CLASS)),
-                        "model": _as_text(device.get(CONF_DEVICE_MODEL)),
+                        "model": _as_text(device.get(CONF_DEVICE_MODEL)) or _model_for_where(device.get(CONF_WHERE, "")) or "",
                         "who": who,
                         "where": where,
                         "base_where": device.get(CONF_WHERE, ""),
@@ -329,7 +390,7 @@ def _parse_telegram(hass, raw):
         "type": WHO_TYPES.get(who, f"WHO {who}" if who else ""),
         "domain": "",
         "suggested_domain": WHO_PLATFORMS.get(who, ""),
-        "model": "",
+        "model": _model_for_where(where) or "",
         "room": "",
         "description": "",
         "address": _friendly_address(where),
@@ -340,6 +401,7 @@ def _parse_telegram(hass, raw):
     }
     if device:
         parsed.update(device)
+        parsed["model"] = parsed.get("model") or _model_for_where(where) or ""
         parsed["matched"] = True
     return parsed
 

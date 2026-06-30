@@ -73,6 +73,70 @@ const DEVICE_INFO = {
   "0305": { type: "Rollladen", circuit: "K", description: "volet cuisine", room: "Cuisine", address: "3.5" },
 };
 
+const ADDRESS_MODELS = {
+  "0201": "F411/4",
+  "0202": "F411/4",
+  "0203": "F411/4",
+  "0204": "F411/4",
+  "0205": "F411/4",
+  "0206": "F411/4",
+  "0207": "F411/4",
+  "0208": "F411/4",
+  "0209": "F411/4",
+  "0210": "F411/4",
+  "0211": "F411/4",
+  "0212": "F411/4",
+  "0213": "F411/4",
+  "0214": "F411/4",
+  "0215": "F411/4",
+  "0301": "F411/4",
+  "0302": "F411/4",
+  "0303": "F411/4",
+  "0304": "F411/4",
+  "0305": "F411/4",
+  "0310": "F411/4",
+  "0311": "F411/4",
+  "0312": "F411/4",
+  "0313": "F411/4",
+  "0110": "F417U2",
+  "0111": "F417U2",
+  "0112": "F417U2",
+  "0113": "F417U2",
+  "0114": "F417U2",
+  "0115": "F417U2",
+  "0401": "F418",
+  "0402": "F418",
+  "0403": "F418",
+  "0404": "F418",
+  "0405": "F418",
+  "0406": "F418",
+  "0407": "F418",
+  "0408": "F418",
+  "0409": "F418",
+  "0410": "F418",
+  "0411": "F418",
+  "0412": "F418",
+  "0413": "F418",
+  "0414": "F418",
+  "0415": "F418",
+  "0501": "F418",
+  "0502": "F418",
+  "0503": "F418",
+  "0504": "F418",
+  "0506": "F418",
+  "0507": "F418",
+  "0508": "F418",
+  "0509": "F418",
+  "0510": "F418",
+};
+
+Object.entries(ADDRESS_MODELS).forEach(([where, model]) => {
+  DEVICE_INFO[where] = {
+    ...(DEVICE_INFO[where] || { address: `${Number(where.slice(0, 2))}.${Number(where.slice(2))}` }),
+    model,
+  };
+});
+
 const HARDWARE_MODELS = [
   "067219",
   "BMSW1005",
@@ -217,6 +281,17 @@ function compactJson(value) {
 }
 
 function inferAutoEntityOptions(parsed) {
+  const model = String(parsed.model || "").toUpperCase();
+  if (model === "F411/4") {
+    return { platform: "cover", advanced: false };
+  }
+  if (model === "F417U2") {
+    return { platform: "light", dimmable: false };
+  }
+  if (DIMMER_MODELS.has(model)) {
+    return { platform: "light", dimmable: true };
+  }
+
   const text = [
     parsed.type,
     parsed.description,
@@ -822,6 +897,7 @@ class ZmartMyhomePanel extends HTMLElement {
 
   defaultModelForEntry(parsed, platform, options = {}) {
     if (platform !== "light") return "";
+    if (parsed.model) return parsed.model;
     const text = [parsed.type, parsed.description, parsed.room, parsed.decoded].join(" ").toLowerCase();
     if (options.dimmable === true || /dimmer|niveau|level/.test(text)) return "F418";
     return "F417U2";
