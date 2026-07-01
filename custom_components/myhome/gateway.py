@@ -71,6 +71,8 @@ from .button import (
 
 EVENT_SESSION_IDLE_TIMEOUT = 300
 RECONNECT_DELAY = 10
+COMMAND_SESSION_SEND_TIMEOUT = 15
+COMMAND_SEND_TIMEOUT = 45
 
 
 def _human_readable_log(message) -> str:
@@ -287,6 +289,7 @@ class MyHOMEGatewayHandler:
         self.listening_worker: asyncio.tasks.Task = None
         self.sending_workers: List[asyncio.tasks.Task] = []
         self.send_buffer = asyncio.Queue()
+        self._restart_sending_workers_lock = asyncio.Lock()
 
     @property
     def mac(self) -> str:
@@ -622,6 +625,10 @@ class MyHOMEGatewayHandler:
 
                     while not self._terminate_sender:
                         task = await self.send_buffer.get()
+                        if task["future"].done():
+                            self.send_buffer.task_done()
+                            continue
+
                         LOGGER.debug(
                             "%s Message `%s` was successfully unqueued by worker %s.",
                             self.log_id,
@@ -629,14 +636,20 @@ class MyHOMEGatewayHandler:
                             worker_id,
                         )
                         try:
-                            await _command_session.send(
-                                message=task["message"],
-                                is_status_request=task["is_status_request"],
+                            await asyncio.wait_for(
+                                _command_session.send(
+                                    message=task["message"],
+                                    is_status_request=task["is_status_request"],
+                                ),
+                                timeout=COMMAND_SESSION_SEND_TIMEOUT,
                             )
                         except Exception:  # noqa: BLE001
-                            await self.send_buffer.put(task)
+                            if not task["future"].done():
+                                await self.send_buffer.put(task)
                             self.send_buffer.task_done()
                             raise
+                        if not task["future"].done():
+                            task["future"].set_result(True)
                         self.send_buffer.task_done()
                 except asyncio.CancelledError:
                     LOGGER.debug(
@@ -689,20 +702,62 @@ class MyHOMEGatewayHandler:
 
         return True
 
-    async def send(self, message: OWNCommand):
-        await self.send_buffer.put({"message": message, "is_status_request": False})
-        _append_bus_monitor_entry(self.hass, self.log_id, message, "out")
+    async def _restart_sending_workers(self) -> None:
+        """Restart command sessions after a send timeout."""
+        async with self._restart_sending_workers_lock:
+            if self._terminate_sender:
+                return
+
+            worker_count = len(self.sending_workers) or 1
+            workers = [
+                worker
+                for worker in self.sending_workers
+                if worker is not None and not worker.done()
+            ]
+            for worker in workers:
+                worker.cancel()
+            if workers:
+                await asyncio.gather(*workers, return_exceptions=True)
+
+            self.sending_workers = [
+                self.hass.loop.create_task(self.sending_loop(worker_id))
+                for worker_id in range(worker_count)
+            ]
+
+    async def _queue_command(self, message: OWNCommand, is_status_request: bool):
+        future = self.hass.loop.create_future()
+        await self.send_buffer.put(
+            {
+                "message": message,
+                "is_status_request": is_status_request,
+                "future": future,
+            }
+        )
+        _append_bus_monitor_entry(
+            self.hass,
+            self.log_id,
+            message,
+            "status" if is_status_request else "out",
+        )
         LOGGER.debug(
             "%s Message `%s` was successfully queued.",
             self.log_id,
             message,
         )
+        try:
+            await asyncio.wait_for(future, timeout=COMMAND_SEND_TIMEOUT)
+        except asyncio.TimeoutError:
+            future.cancel()
+            LOGGER.warning(
+                "%s Timed out while sending message `%s`, restarting command workers.",
+                self.log_id,
+                message,
+            )
+            await self._restart_sending_workers()
+            raise
+
+    async def send(self, message: OWNCommand):
+        await self._queue_command(message, False)
 
     async def send_status_request(self, message: OWNCommand):
-        await self.send_buffer.put({"message": message, "is_status_request": True})
-        _append_bus_monitor_entry(self.hass, self.log_id, message, "status")
-        LOGGER.debug(
-            "%s Message `%s` was successfully queued.",
-            self.log_id,
-            message,
-        )
+        await self._queue_command(message, True)

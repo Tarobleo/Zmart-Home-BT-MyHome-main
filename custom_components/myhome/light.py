@@ -205,6 +205,7 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
         if command is not None and command.is_valid:
             await self._gateway_handler.send(command)
             self._set_optimistic_state(action != 0, brightness_percent)
+            self._hass.async_create_task(self.async_update())
             return
         LOGGER.error(
             "%s Could not build simple dimmer command *1*%s*%s##.",

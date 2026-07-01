@@ -143,11 +143,13 @@ class MyHOMESwitch(MyHOMEEntity, SwitchEntity):
         """Turn the device on."""
         await self._gateway_handler.send(OWNLightingCommand.switch_on(self._full_where))
         self._set_optimistic_state(True)
+        self._hass.async_create_task(self.async_update())
 
     async def async_turn_off(self, **kwargs):  # pylint: disable=unused-argument
         """Turn the device off."""
         await self._gateway_handler.send(OWNLightingCommand.switch_off(self._full_where))
         self._set_optimistic_state(False)
+        self._hass.async_create_task(self.async_update())
 
     def handle_event(self, message: OWNLightingEvent):
         """Handle an event message."""
