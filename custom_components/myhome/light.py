@@ -46,6 +46,7 @@ from .gateway import MyHOMEGatewayHandler
 DIMMER_MODELS = {"F418", "F430R8"}
 NO_STATUS_REQUEST_DIMMER_MODELS = {"F418"}
 SIMPLE_DIMMER_COMMAND_MODELS = {"F418"}
+VALID_LIGHTING_WHAT_VALUES = set(range(0, 11))
 
 
 def _short_point_to_point_where(where: str) -> str:
@@ -99,6 +100,19 @@ def eight_bits_to_percent(value: int) -> int:
 
 def percent_to_eight_bits(value: int) -> int:
     return int(round(255 / 100 * value, 0))
+
+
+def _lighting_event_what(message: OWNLightingEvent):
+    """Return the raw lighting WHAT value when it is exposed by OWNd."""
+    event_content = getattr(message, "event_content", None)
+    if isinstance(event_content, dict) and "what" in event_content:
+        return event_content["what"]
+
+    telegram = str(message).strip()
+    if not telegram.startswith("*1*"):
+        return None
+    parts = [part for part in telegram.strip("*#").split("*") if part]
+    return parts[1] if len(parts) > 1 else None
 
 
 class MyHOMELight(MyHOMEEntity, LightEntity):
@@ -301,6 +315,22 @@ class MyHOMELight(MyHOMEEntity, LightEntity):
             MESSAGE_TYPE_MOTION_TIMEOUT,
             MESSAGE_TYPE_PIR_SENSITIVITY,
         ]:
+            return True
+
+        what = _lighting_event_what(message)
+        if (
+            what is not None
+            and str(what).isdigit()
+            and int(what) not in VALID_LIGHTING_WHAT_VALUES
+            and message.brightness is None
+            and message.brightness_preset is None
+        ):
+            LOGGER.debug(
+                "%s Ignoring unsupported lighting status `%s` for %s.",
+                self._gateway_handler.log_id,
+                what,
+                self._where,
+            )
             return True
 
         LOGGER.info(
