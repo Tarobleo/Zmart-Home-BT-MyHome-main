@@ -249,6 +249,7 @@ class MyhomeFlowHandler(ConfigFlow, domain=DOMAIN):
                 CONF_UDN: gateway.udn,
             }
             _new_entry_options = {
+                **(dict(self._existing_entry.options) if self._existing_entry else {}),
                 CONF_WORKER_COUNT: self._existing_entry.options[CONF_WORKER_COUNT] if self._existing_entry and CONF_WORKER_COUNT in self._existing_entry.options else 1,
             }
 
@@ -415,7 +416,6 @@ class MyhomeOptionsFlowHandler(OptionsFlow):
             if not errors:
                 if _data_update:
                     self.hass.config_entries.async_update_entry(self.config_entry, data=self.data)
-                    await self.hass.config_entries.async_reload(self.config_entry.entry_id)
 
                 return self.async_create_entry(title="", data=self.options)
 

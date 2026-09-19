@@ -237,6 +237,11 @@ async def async_setup(hass, config):
     return False
 
 
+async def _async_update_options(hass: HomeAssistant, entry: ConfigEntry):
+    """Reload entities after the configuration path or gateway options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     if entry.data[CONF_MAC] not in hass.data[DOMAIN]:
         hass.data[DOMAIN][entry.data[CONF_MAC]] = {}
@@ -257,7 +262,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         async with aiofiles.open(_config_file_path, mode="r") as yaml_file:
             _validated_config = config_schema(yaml.safe_load(await yaml_file.read()))
     except FileNotFoundError:
-        LOGGER.error(f"Configartion file '{_config_file_path}' is not present!")
+        LOGGER.error("MyHome configuration file %s is missing. Check the configuration path in the integration options.", _config_file_path)
         return False
 
     if entry.data[CONF_MAC] in _validated_config:
@@ -265,6 +270,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             entry.data[CONF_MAC]
         ]
     else:
+        LOGGER.error(
+            "Gateway MAC %s is missing from %s. Configured gateway MACs: %s. "
+            "Set the YAML gateway mac to the MAC of this integration.",
+            entry.data[CONF_MAC], _config_file_path, ", ".join(_validated_config),
+        )
         return False
 
     # Migrating the config entry's unique_id if it was not formated to the recommended hass standard
@@ -541,6 +551,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         return True
 
     hass.services.async_register(DOMAIN, "create_entity", handle_create_entity)
+    entry.async_on_unload(entry.add_update_listener(_async_update_options))
 
     return True
 
