@@ -421,15 +421,17 @@ climate_schema = MyHomeDeviceSchema(
     }
 )
 
+# Bind the validator call explicitly: nested schema compilation must not
+# bypass the subclass post-processing (entity IDs and runtime defaults).
 gateway_schema = Schema(
     {
         Required(CONF_MAC): MacAddress(),
-        Optional(LIGHT): light_schema,
-        Optional(SWITCH): switch_schema,
-        Optional(COVER): cover_schema,
-        Optional(BINARY_SENSOR): binary_sensor_schema,
-        Optional(SENSOR): sensor_schema,
-        Optional(CLIMATE): climate_schema,
+        Optional(LIGHT): light_schema.__call__,
+        Optional(SWITCH): switch_schema.__call__,
+        Optional(COVER): cover_schema.__call__,
+        Optional(BINARY_SENSOR): binary_sensor_schema.__call__,
+        Optional(SENSOR): sensor_schema.__call__,
+        Optional(CLIMATE): climate_schema.__call__,
     }
 )
 
