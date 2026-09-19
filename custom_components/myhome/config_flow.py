@@ -79,7 +79,7 @@ class MyhomeFlowHandler(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
-        return MyhomeOptionsFlowHandler(config_entry)
+        return MyhomeOptionsFlowHandler()
 
     def __init__(self):
         """Initialize the MyHome flow."""
@@ -104,7 +104,7 @@ class MyhomeFlowHandler(ConfigFlow, domain=DOMAIN):
             return await self.async_step_test_connection()
 
         try:
-            with async_timeout.timeout(5):
+            async with async_timeout.timeout(5):
                 local_gateways = await find_gateways()
         except asyncio.TimeoutError:
             return self.async_abort(reason="discovery_timeout")
@@ -374,11 +374,10 @@ class MyhomeFlowHandler(ConfigFlow, domain=DOMAIN):
 class MyhomeOptionsFlowHandler(OptionsFlow):
     """Handle MyHome options."""
 
-    def __init__(self, config_entry):
-        """Initialize MyHome options flow."""
-        self.config_entry = config_entry
-        self.options = dict(config_entry.options)
-        self.data = dict(config_entry.data)
+    async def async_step_init(self, user_input=None):
+        """Initialize options after Home Assistant attaches the config entry."""
+        self.options = dict(self.config_entry.options)
+        self.data = dict(self.config_entry.data)
         if CONF_WORKER_COUNT not in self.options:
             self.options[CONF_WORKER_COUNT] = 1
         if CONF_FILE_PATH not in self.options:
@@ -386,9 +385,7 @@ class MyhomeOptionsFlowHandler(OptionsFlow):
         if CONF_GENERATE_EVENTS not in self.options:
             self.options[CONF_GENERATE_EVENTS] = False
 
-    async def async_step_init(self, user_input=None):  # pylint: disable=unused-argument
-        """Manage the MyHome options."""
-        return await self.async_step_user()
+        return await self.async_step_user(user_input)
 
     async def async_step_user(self, user_input=None, errors={}):  # pylint: disable=dangerous-default-value
         """Manage the MyHome devices options."""
